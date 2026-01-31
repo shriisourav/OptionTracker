@@ -602,6 +602,41 @@ body {
     font-size: 1.1rem;
 }
 
+.chart-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.chart-type-toggle {
+    display: flex;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    padding: 2px;
+    gap: 2px;
+}
+
+.chart-type-btn {
+    background: transparent;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    opacity: 0.6;
+}
+
+.chart-type-btn:hover {
+    opacity: 0.9;
+    background: var(--bg-hover);
+}
+
+.chart-type-btn.active {
+    background: var(--cyan-dim);
+    opacity: 1;
+}
+
 .chart-legend {
     display: flex;
     gap: 12px;

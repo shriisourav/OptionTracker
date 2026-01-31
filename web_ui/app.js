@@ -48,6 +48,7 @@ const state = {
     selectedData: null,
     comparisonData: null,
     chartInstance: null,
+    chartType: 'line',  // 'line' or 'bar'
     watchlist: [],
     currentPage: 'options',
     plCalculator: {
@@ -158,6 +159,10 @@ function setupEventListeners() {
 
     // Watchlist
     el.addWatchlistBtn?.addEventListener('click', toggleWatchlist);
+
+    // Chart type toggle
+    document.getElementById('lineChartBtn')?.addEventListener('click', () => setChartType('line'));
+    document.getElementById('barChartBtn')?.addEventListener('click', () => setChartType('bar'));
 }
 
 // ============================================
@@ -631,67 +636,131 @@ function updateChart() {
     if (!state.comparisonData?.series) return;
 
     const series = state.comparisonData.series;
-    const labels = generateMonthYearLabels();
-
     const colors = { before: '#a855f7', below: '#a855f7', target: '#00d4ff', after: '#22c55e', above: '#22c55e' };
 
-    const datasets = [];
-    let allData = [];
-    const legendItems = [];
+    if (state.chartType === 'bar') {
+        // BAR CHART - Shows actual Bid/Mid/Ask prices
+        const labels = series.map(s =>
+            state.mode === 'strike' ? `$${s.data.strike}` : formatDateShort(s.date || s.label)
+        );
 
-    series.forEach((s, idx) => {
-        const color = colors[s.position] || colors.target;
-        const data = generatePricePath(s.data.mid, idx);
-        allData = allData.concat(data);
+        const midPrices = series.map(s => s.data.mid);
+        const bidPrices = series.map(s => s.data.bid);
+        const askPrices = series.map(s => s.data.ask);
+        const backgroundColors = series.map(s => {
+            const base = colors[s.position] || colors.target;
+            return s.position === 'target' ? base : base + '99';
+        });
+        const borderColors = series.map(s => colors[s.position] || colors.target);
 
-        let label = state.mode === 'strike' ? `$${s.data.strike}` : formatDateShort(s.date || s.label);
-
-        datasets.push({
-            label, data, borderColor: color, backgroundColor: 'transparent',
-            borderWidth: s.position === 'target' ? 3 : 2, tension: 0.4, pointRadius: 0
+        const legendItems = series.map(s => {
+            const colorClass = s.position === 'target' ? 'cyan' :
+                (s.position === 'before' || s.position === 'below') ? 'purple' : 'green';
+            const label = state.mode === 'strike' ? `$${s.data.strike}` : formatDateShort(s.date || s.label);
+            return `<div class="legend-item"><span class="legend-color ${colorClass}"></span>${label}: $${s.data.mid.toFixed(2)}</div>`;
         });
 
-        const colorClass = s.position === 'target' ? 'cyan' : (s.position === 'before' || s.position === 'below') ? 'purple' : 'green';
-        legendItems.push(`<div class="legend-item"><span class="legend-color ${colorClass}"></span>${label}</div>`);
-    });
+        if (el.chartLegend) el.chartLegend.innerHTML = legendItems.join('');
+        if (el.chartTitle) el.chartTitle.textContent = `Option Price by ${state.mode === 'strike' ? 'Strike' : 'Expiration'}`;
 
-    const maxValue = Math.max(...allData);
-    legendItems.push(`<div class="legend-item"><span class="legend-color max"></span>Max</div>`);
-
-    if (el.chartLegend) el.chartLegend.innerHTML = legendItems.join('');
-    if (el.chartTitle) el.chartTitle.textContent = `Price Comparison: ±1 ${state.mode === 'strike' ? 'Strike' : 'Date'}`;
-
-    state.chartInstance = new Chart(ctx, {
-        type: 'line',
-        data: { labels, datasets },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            interaction: { intersect: false, mode: 'index' },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: 'rgba(13, 17, 23, 0.95)', titleColor: '#00d4ff', bodyColor: '#e6edf3',
-                    callbacks: { label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}` }
+        state.chartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Bid', data: bidPrices, backgroundColor: 'rgba(239, 68, 68, 0.5)', borderColor: '#ef4444', borderWidth: 1 },
+                    { label: 'Mid', data: midPrices, backgroundColor: backgroundColors, borderColor: borderColors, borderWidth: 2 },
+                    { label: 'Ask', data: askPrices, backgroundColor: 'rgba(34, 197, 94, 0.5)', borderColor: '#22c55e', borderWidth: 1 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { intersect: false, mode: 'index' },
+                plugins: {
+                    legend: { display: true, position: 'top', labels: { color: '#8b949e', font: { size: 11 } } },
+                    tooltip: {
+                        backgroundColor: 'rgba(13, 17, 23, 0.95)', titleColor: '#00d4ff', bodyColor: '#e6edf3',
+                        callbacks: { label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}` }
+                    }
                 },
-                annotation: {
-                    annotations: {
-                        maxLine: {
-                            type: 'line', yMin: maxValue, yMax: maxValue,
-                            borderColor: '#f59e0b', borderWidth: 2, borderDash: [6, 4],
-                            label: {
-                                display: true, content: `Max: $${maxValue.toFixed(2)}`, position: 'end',
-                                backgroundColor: '#f59e0b', color: '#0d1117', font: { size: 11, weight: 'bold' }
+                scales: {
+                    x: { grid: { color: '#21262d' }, ticks: { color: '#e6edf3', font: { size: 12, weight: 'bold' } } },
+                    y: { grid: { color: '#21262d' }, ticks: { color: '#6e7681', font: { size: 11 }, callback: v => '$' + v.toFixed(2) } }
+                }
+            }
+        });
+    } else {
+        // LINE CHART - Shows trend visualization
+        const labels = generateMonthYearLabels();
+        const datasets = [];
+        let allData = [];
+        const legendItems = [];
+
+        series.forEach((s, idx) => {
+            const color = colors[s.position] || colors.target;
+            const data = generatePricePath(s.data.mid, idx);
+            allData = allData.concat(data);
+
+            let label = state.mode === 'strike' ? `$${s.data.strike}` : formatDateShort(s.date || s.label);
+
+            datasets.push({
+                label, data, borderColor: color, backgroundColor: 'transparent',
+                borderWidth: s.position === 'target' ? 3 : 2, tension: 0.4, pointRadius: 0
+            });
+
+            const colorClass = s.position === 'target' ? 'cyan' : (s.position === 'before' || s.position === 'below') ? 'purple' : 'green';
+            legendItems.push(`<div class="legend-item"><span class="legend-color ${colorClass}"></span>${label}</div>`);
+        });
+
+        const maxValue = Math.max(...allData);
+        legendItems.push(`<div class="legend-item"><span class="legend-color max"></span>Max</div>`);
+
+        if (el.chartLegend) el.chartLegend.innerHTML = legendItems.join('');
+        if (el.chartTitle) el.chartTitle.textContent = `Price Comparison: ±1 ${state.mode === 'strike' ? 'Strike' : 'Date'}`;
+
+        state.chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: { labels, datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { intersect: false, mode: 'index' },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(13, 17, 23, 0.95)', titleColor: '#00d4ff', bodyColor: '#e6edf3',
+                        callbacks: { label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}` }
+                    },
+                    annotation: {
+                        annotations: {
+                            maxLine: {
+                                type: 'line', yMin: maxValue, yMax: maxValue,
+                                borderColor: '#f59e0b', borderWidth: 2, borderDash: [6, 4],
+                                label: {
+                                    display: true, content: `Max: $${maxValue.toFixed(2)}`, position: 'end',
+                                    backgroundColor: '#f59e0b', color: '#0d1117', font: { size: 11, weight: 'bold' }
+                                }
                             }
                         }
                     }
+                },
+                scales: {
+                    x: { grid: { color: '#21262d' }, ticks: { color: '#6e7681', font: { size: 11 } } },
+                    y: { grid: { color: '#21262d' }, ticks: { color: '#6e7681', font: { size: 11 }, callback: v => '$' + v.toFixed(1) } }
                 }
-            },
-            scales: {
-                x: { grid: { color: '#21262d' }, ticks: { color: '#6e7681', font: { size: 11 } } },
-                y: { grid: { color: '#21262d' }, ticks: { color: '#6e7681', font: { size: 11 }, callback: v => '$' + v.toFixed(1) } }
             }
-        }
-    });
+        });
+    }
+}
+
+function setChartType(type) {
+    state.chartType = type;
+
+    // Update button states
+    document.getElementById('lineChartBtn')?.classList.toggle('active', type === 'line');
+    document.getElementById('barChartBtn')?.classList.toggle('active', type === 'bar');
+
+    // Re-render chart
+    updateChart();
 }
 
 
