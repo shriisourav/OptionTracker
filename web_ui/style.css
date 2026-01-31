@@ -746,6 +746,37 @@ body {
     margin-bottom: 16px;
 }
 
+/* Buy Options Only Notice */
+.buy-only-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.05));
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.buy-only-notice .notice-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    background: var(--green);
+    color: white;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.buy-only-notice .notice-text {
+    font-size: 0.8rem;
+    color: var(--green);
+    font-weight: 500;
+}
+
 .calc-input-group {
     margin-bottom: 12px;
 }
@@ -1177,11 +1208,40 @@ body {
     font-weight: 700;
     color: var(--text-primary);
     margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .compare-title p {
     color: var(--text-secondary);
     font-size: 0.95rem;
+}
+
+/* Cool Compare Icon */
+.compare-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--cyan), var(--purple));
+    border-radius: 10px;
+    font-size: 1.3rem;
+    box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 4px 25px rgba(168, 85, 247, 0.5);
+    }
 }
 
 /* Controls Bar */
