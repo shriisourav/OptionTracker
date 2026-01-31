@@ -1,0 +1,7 @@
+name = "optiontracker-keepalive"
+main = "keep-alive-worker.js"
+compatibility_date = "2024-01-01"
+
+# Cron trigger - runs every 5 minutes
+[triggers]
+crons = ["*/5 * * * *"]
