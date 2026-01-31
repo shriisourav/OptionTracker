@@ -1,7 +1,7 @@
 // OptionTracker - Main Application with Watchlist & P/L Fix
 
-// API Configuration - Change RENDER_URL after deploying backend
-const RENDER_BACKEND_URL = 'https://optiontracker-api.onrender.com';
+// API Configuration - Uses Render backend in production
+const RENDER_BACKEND_URL = 'https://optiontracker.onrender.com';
 const API_BASE = window.location.hostname === 'localhost' || window.location.protocol === 'file:'
     ? 'http://localhost:5001/api'
     : `${RENDER_BACKEND_URL}/api`;
