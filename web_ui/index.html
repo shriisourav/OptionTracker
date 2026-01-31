@@ -29,7 +29,7 @@
             <div class="nav-links">
                 <a href="#" class="nav-link active" data-page="options">Options</a>
                 <a href="#" class="nav-link" data-page="watchlist">Watchlist</a>
-                <a href="#" class="nav-link" data-page="analysis">Analysis</a>
+                <a href="#" class="nav-link" data-page="compare">Stock Compare</a>
             </div>
             <div class="nav-right">
                 <span class="market-status">🟢 Market Open</span>
@@ -260,11 +260,147 @@
                 </div>
             </div>
 
-            <!-- ANALYSIS PAGE -->
-            <div class="page-content" id="analysisPage">
-                <div class="analysis-container">
-                    <h1>📊 Analysis Tools</h1>
-                    <p>Coming soon...</p>
+            <!-- STOCK COMPARE PAGE -->
+            <div class="page-content" id="comparePage">
+                <div class="compare-container">
+                    <!-- Header -->
+                    <div class="compare-header">
+                        <div class="compare-title">
+                            <h1>📊 Stock Compare</h1>
+                            <p>Compare performance and optimize your portfolio</p>
+                        </div>
+                    </div>
+
+                    <!-- Controls -->
+                    <div class="compare-controls">
+                        <div class="compare-input-group">
+                            <label>Stock Tickers (comma separated)</label>
+                            <input type="text" id="compareTickers" placeholder="AAPL, NVDA, TSLA, GOOGL, MSFT, AMZN"
+                                value="AAPL, NVDA, TSLA, GOOGL, MSFT">
+                        </div>
+                        <div class="compare-input-group">
+                            <label>Start Date</label>
+                            <input type="date" id="compareStartDate">
+                        </div>
+                        <div class="compare-input-group">
+                            <label>End Date</label>
+                            <input type="date" id="compareEndDate">
+                        </div>
+                        <div class="compare-input-group">
+                            <label>Price Scale</label>
+                            <div class="toggle-group">
+                                <button class="toggle-btn active" id="scaleActual">Actual</button>
+                                <button class="toggle-btn" id="scaleRelative">Relative %</button>
+                            </div>
+                        </div>
+                        <button class="compare-analyze-btn" id="analyzeStocksBtn">📊 Analyze Stocks</button>
+                    </div>
+
+                    <!-- Main Content Grid -->
+                    <div class="compare-grid">
+                        <!-- Left: Metrics Table -->
+                        <div class="compare-metrics">
+                            <h3>📈 Performance Metrics</h3>
+                            <div class="metrics-table-wrapper">
+                                <table class="metrics-table" id="metricsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Ticker</th>
+                                            <th>Price</th>
+                                            <th>1Y Return</th>
+                                            <th>Total Return</th>
+                                            <th>Volatility</th>
+                                            <th>Sharpe</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="metricsTableBody">
+                                        <tr>
+                                            <td colspan="6" class="loading-cell">Click "Analyze Stocks" to load data
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Best/Worst Performers -->
+                            <div class="performer-cards">
+                                <div class="performer-card best">
+                                    <span class="performer-label">🏆 Best Performer</span>
+                                    <span class="performer-ticker" id="bestTicker">--</span>
+                                    <span class="performer-return green" id="bestReturn">--</span>
+                                </div>
+                                <div class="performer-card worst">
+                                    <span class="performer-label">📉 Worst Performer</span>
+                                    <span class="performer-ticker" id="worstTicker">--</span>
+                                    <span class="performer-return red" id="worstReturn">--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right: Chart -->
+                        <div class="compare-chart-section">
+                            <h3>📉 Stock Price Comparison</h3>
+                            <div class="compare-chart-container">
+                                <canvas id="compareChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Portfolio Optimization -->
+                    <div class="portfolio-section">
+                        <h3>💼 Portfolio Optimization Suite</h3>
+                        <p class="portfolio-desc">Markowitz Model - Modern Portfolio Theory</p>
+
+                        <div class="portfolio-controls">
+                            <div class="portfolio-input-group">
+                                <label>Investment Amount ($)</label>
+                                <input type="number" id="investmentAmount" value="10000" min="100" step="100">
+                            </div>
+                            <div class="portfolio-input-group">
+                                <label>Risk Tolerance (0-1)</label>
+                                <input type="range" id="riskTolerance" min="0" max="1" step="0.1" value="0.5">
+                                <span id="riskValue">0.5</span>
+                            </div>
+                            <button class="optimize-btn" id="optimizeBtn">⚡ Optimize Portfolio</button>
+                        </div>
+
+                        <div class="allocation-results hidden" id="allocationResults">
+                            <h4>Optimal Portfolio Allocation</h4>
+                            <table class="allocation-table">
+                                <thead>
+                                    <tr>
+                                        <th>Ticker</th>
+                                        <th>Weight (%)</th>
+                                        <th>Amount ($)</th>
+                                        <th>Expected Return</th>
+                                        <th>Risk (Std Dev)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="allocationTableBody"></tbody>
+                            </table>
+                            <div class="portfolio-summary">
+                                <div class="summary-card">
+                                    <span class="summary-label">Expected Portfolio Return</span>
+                                    <span class="summary-value green" id="portfolioReturn">--</span>
+                                </div>
+                                <div class="summary-card">
+                                    <span class="summary-label">Portfolio Risk</span>
+                                    <span class="summary-value yellow" id="portfolioRisk">--</span>
+                                </div>
+                                <div class="summary-card">
+                                    <span class="summary-label">Sharpe Ratio</span>
+                                    <span class="summary-value cyan" id="portfolioSharpe">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Export Buttons -->
+                    <div class="export-section">
+                        <button class="export-btn" id="exportReturns">📥 Export Returns CSV</button>
+                        <button class="export-btn" id="exportPrices">📥 Export Prices CSV</button>
+                        <button class="export-btn" id="exportChart">🖼️ Save Chart</button>
+                    </div>
                 </div>
             </div>
         </main>
@@ -280,6 +416,7 @@
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
     <script src="app.js"></script>
+    <script src="compare.js"></script>
     <script src="auth.js"></script>
 </body>
 
