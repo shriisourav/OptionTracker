@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OptionTracker - Options Analysis Platform</title>
+    <meta name="description" content="Professional options analysis and profit/loss calculator">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Sign-In API -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+
+<body>
+    <div class="website">
+        <!-- Top Navigation -->
+        <nav class="top-nav">
+            <div class="nav-brand">
+                <img src="logo.png" alt="OptionTracker" class="brand-logo">
+                <span class="brand-name">OptionTracker</span>
+            </div>
+            <div class="nav-links">
+                <a href="#" class="nav-link active" data-page="options">Options</a>
+                <a href="#" class="nav-link" data-page="watchlist">Watchlist</a>
+                <a href="#" class="nav-link" data-page="analysis">Analysis</a>
+            </div>
+            <div class="nav-right">
+                <span class="market-status">🟢 Market Open</span>
+                <!-- User Auth Section -->
+                <div class="user-section" id="userSection">
+                    <!-- Google Sign-In Button Container -->
+                    <div id="googleSignInBtn"></div>
+                    <!-- User Profile (shown after login) -->
+                    <div class="user-profile hidden" id="userProfile">
+                        <img src="" alt="User" class="user-avatar" id="userAvatar">
+                        <div class="user-info">
+                            <span class="user-name" id="userName">User</span>
+                            <span class="user-email" id="userEmail">email@example.com</span>
+                        </div>
+                        <button class="sign-out-btn" id="signOutBtn">Sign Out</button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content Pages -->
+        <main class="main-content" id="mainContent">
+            <!-- OPTIONS PAGE -->
+            <div class="page-content active" id="optionsPage">
+                <!-- Left Panel: Stock & Options Selection -->
+                <aside class="left-panel">
+                    <section class="panel-section">
+                        <div class="search-wrapper">
+                            <input type="text" id="tickerInput" class="search-input" placeholder="Search ticker..."
+                                autocomplete="off">
+                            <div id="autocomplete" class="autocomplete-dropdown hidden"></div>
+                        </div>
+                    </section>
+
+                    <section class="panel-section stock-overview">
+                        <div class="stock-header">
+                            <div class="stock-main">
+                                <span class="stock-ticker" id="stockTicker">MSFT</span>
+                                <span class="stock-name" id="stockName">Microsoft Corporation</span>
+                            </div>
+                            <div class="stock-price-block">
+                                <span class="stock-price" id="stockPrice">$430.29</span>
+                                <span class="stock-change positive" id="stockChange">+$1.25 (+0.29%)</span>
+                            </div>
+                            <button class="add-watchlist-btn" id="addWatchlistBtn" title="Add to Watchlist">
+                                <span class="watchlist-icon">☆</span>
+                            </button>
+                        </div>
+
+                        <div class="stock-tabs">
+                            <button class="stock-tab active" data-tab="overview">Overview</button>
+                            <button class="stock-tab" data-tab="fundamentals">Fundamentals</button>
+                        </div>
+                        <div class="stock-tab-content" id="overviewTab">
+                            <div class="info-row"><span>Previous Close</span><span id="prevClose">$429.04</span></div>
+                            <div class="info-row"><span>Day Range</span><span id="dayRange">$428 - $432</span></div>
+                            <div class="info-row"><span>52 Week Range</span><span id="weekRange">$310 - $468</span>
+                            </div>
+                            <div class="info-row"><span>Volume</span><span id="volume">18.5M</span></div>
+                        </div>
+                        <div class="stock-tab-content hidden" id="fundamentalsTab">
+                            <div class="info-row"><span>Market Cap</span><span id="marketCap">$3.2T</span></div>
+                            <div class="info-row"><span>P/E Ratio</span><span id="peRatio">35.2</span></div>
+                            <div class="info-row"><span>Dividend Yield</span><span id="divYield">0.72%</span></div>
+                            <div class="info-row"><span>Dividend Rate</span><span id="divRate">$3.00</span></div>
+                            <div class="info-row"><span>Beta</span><span id="beta">0.89</span></div>
+                        </div>
+                    </section>
+
+                    <section class="panel-section">
+                        <div class="section-header">
+                            <h3>Expiration Dates</h3>
+                            <span class="badge" id="dateCount">0</span>
+                        </div>
+                        <div class="dates-list" id="datesList"></div>
+                    </section>
+
+                    <section class="panel-section">
+                        <div class="section-header">
+                            <h3>Strikes</h3>
+                            <span class="atm-label">ATM: <span id="atmStrike">$430</span></span>
+                        </div>
+                        <div class="strikes-container" id="strikesContainer"></div>
+                    </section>
+                </aside>
+
+                <!-- Center: Chart & Analysis -->
+                <section class="center-panel">
+                    <div class="controls-bar">
+                        <div class="control-group">
+                            <button class="control-btn" id="priceModeBtn">±Strike</button>
+                            <button class="control-btn active" id="dateModeBtn">±Date</button>
+                        </div>
+                        <div class="control-group">
+                            <select id="optionType" class="control-select">
+                                <option value="calls">Call Options</option>
+                                <option value="puts">Put Options</option>
+                            </select>
+                        </div>
+                        <div class="selected-contract" id="selectedContract">
+                            <span class="contract-label">Selected:</span>
+                            <span class="contract-value" id="contractLabel">$430C Feb 1</span>
+                        </div>
+                    </div>
+
+                    <div class="chart-wrapper">
+                        <div class="chart-header">
+                            <h2 id="chartTitle">Price Comparison: ±1 Date</h2>
+                            <div class="chart-legend" id="chartLegend"></div>
+                        </div>
+                        <div class="chart-container"><canvas id="priceChart"></canvas></div>
+                    </div>
+
+                    <div class="info-panel">
+                        <div class="info-tabs">
+                            <button class="info-tab active" data-info="factors">Contract Factors</button>
+                            <button class="info-tab" data-info="greeks">Option Greeks</button>
+                        </div>
+                        <div class="info-content" id="factorsContent">
+                            <div class="info-grid">
+                                <div class="info-card"><span class="card-label">Bid</span><span class="card-value"
+                                        id="infoBid">$3.20</span></div>
+                                <div class="info-card highlight"><span class="card-label">Mid</span><span
+                                        class="card-value" id="infoMid">$3.28</span></div>
+                                <div class="info-card"><span class="card-label">Ask</span><span class="card-value"
+                                        id="infoAsk">$3.35</span></div>
+                                <div class="info-card"><span class="card-label">Spread</span><span class="card-value"
+                                        id="infoSpread">$0.15</span></div>
+                                <div class="info-card"><span class="card-label">IV</span><span class="card-value"
+                                        id="infoIV">21%</span></div>
+                                <div class="info-card"><span class="card-label">Volume</span><span class="card-value"
+                                        id="infoVol">8.4K</span></div>
+                                <div class="info-card"><span class="card-label">Open Int</span><span class="card-value"
+                                        id="infoOI">12.5K</span></div>
+                                <div class="info-card"><span class="card-label">Change</span><span class="card-value"
+                                        id="infoChg">-5.2%</span></div>
+                            </div>
+                        </div>
+                        <div class="info-content hidden" id="greeksContent">
+                            <div class="info-grid greeks-grid">
+                                <div class="info-card"><span class="card-label">Delta (Δ)</span><span class="card-value"
+                                        id="greekDelta">0.52</span><span class="card-desc">Price sensitivity</span>
+                                </div>
+                                <div class="info-card"><span class="card-label">Gamma (Γ)</span><span class="card-value"
+                                        id="greekGamma">0.03</span><span class="card-desc">Delta change rate</span>
+                                </div>
+                                <div class="info-card"><span class="card-label">Theta (Θ)</span><span
+                                        class="card-value red" id="greekTheta">-0.05</span><span class="card-desc">Time
+                                        decay/day</span></div>
+                                <div class="info-card"><span class="card-label">Vega (ν)</span><span class="card-value"
+                                        id="greekVega">0.15</span><span class="card-desc">IV sensitivity</span></div>
+                                <div class="info-card"><span class="card-label">Rho (ρ)</span><span class="card-value"
+                                        id="greekRho">0.08</span><span class="card-desc">Rate sensitivity</span></div>
+                                <div class="info-card"><span class="card-label">Omega (Λ)</span><span class="card-value"
+                                        id="greekOmega">12.5</span><span class="card-desc">Leverage ratio</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Right Panel: Calculator -->
+                <aside class="right-panel">
+                    <section class="panel-section calculator">
+                        <h3 class="section-title">Position Calculator</h3>
+                        <div class="calc-input-group">
+                            <label>Number of Contracts</label>
+                            <input type="number" id="contractQty" value="1" min="1">
+                        </div>
+                        <div class="calc-results">
+                            <div class="calc-row"><span>Premium per Contract</span><span id="premiumPer">$328.00</span>
+                            </div>
+                            <div class="calc-row highlight"><span>Total Cost</span><span id="totalCost">$328.00</span>
+                            </div>
+                            <div class="calc-row"><span>Max Loss (100%)</span><span class="red"
+                                    id="maxLoss">$328.00</span></div>
+                            <div class="calc-row"><span>Breakeven Price</span><span id="breakeven">$433.28</span></div>
+                        </div>
+                    </section>
+
+                    <section class="panel-section calculator scenario">
+                        <h3 class="section-title">💰 What-If Scenario</h3>
+                        <p class="calc-desc">Calculate potential P/L if stock reaches target</p>
+                        <div class="calc-input-group">
+                            <label>Target Stock Price ($)</label>
+                            <input type="number" id="targetPrice" placeholder="e.g., 450" step="0.01">
+                        </div>
+                        <div class="calc-input-group">
+                            <label>At Expiration</label>
+                            <select id="targetDate"></select>
+                        </div>
+                        <button class="calc-btn" id="calculatePL">Calculate P/L</button>
+                        <div class="pl-results hidden" id="plResults">
+                            <div class="calc-row"><span>Option Value</span><span id="optionValue">$0</span></div>
+                            <div class="calc-row"><span>Your Cost</span><span id="costBasis">$0</span></div>
+                            <div class="calc-row highlight profit"><span>Profit/Loss</span><span
+                                    id="profitLoss">$0</span></div>
+                            <div class="calc-row"><span>Return %</span><span id="returnPct">0%</span></div>
+                        </div>
+                    </section>
+                </aside>
+            </div>
+
+            <!-- WATCHLIST PAGE -->
+            <div class="page-content" id="watchlistPage">
+                <div class="watchlist-container">
+                    <div class="watchlist-header">
+                        <h1>📋 My Watchlist</h1>
+                        <p class="watchlist-desc">Track your favorite stocks and options</p>
+                    </div>
+
+                    <div class="watchlist-auth-prompt" id="watchlistAuthPrompt">
+                        <div class="auth-prompt-box">
+                            <img src="logo.png" alt="OptionTracker" class="prompt-logo">
+                            <h2>Sign in to save your Watchlist</h2>
+                            <p>Your watchlist will be synced across devices</p>
+                            <div id="watchlistGoogleBtn"></div>
+                        </div>
+                    </div>
+
+                    <div class="watchlist-content hidden" id="watchlistContent">
+                        <div class="watchlist-empty hidden" id="watchlistEmpty">
+                            <span class="empty-icon">☆</span>
+                            <h3>Your watchlist is empty</h3>
+                            <p>Add stocks from the Options page by clicking the star icon</p>
+                        </div>
+                        <div class="watchlist-items" id="watchlistItems"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ANALYSIS PAGE -->
+            <div class="page-content" id="analysisPage">
+                <div class="analysis-container">
+                    <h1>📊 Analysis Tools</h1>
+                    <p>Coming soon...</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay hidden" id="loadingOverlay">
+            <div class="spinner"></div>
+            <span>Loading data...</span>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <script src="app.js"></script>
+    <script src="auth.js"></script>
+</body>
+
+</html>
