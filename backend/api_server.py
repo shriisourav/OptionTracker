@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
-Flask REST API for CallTrack Options Engine
-Exposes the Python data engine via HTTP endpoints
+OptionTracker API Server
+Flask REST API for options analysis and comparison
+
+Copyright (c) 2026 Sourav Shrivastava. All rights reserved.
+Licensed under the MIT License. See LICENSE file for details.
 """
 
 from flask import Flask, request, jsonify
@@ -26,7 +29,7 @@ def sanitize_value(val, default=0):
 @app.route('/api/health', methods=['GET'])
 def health():
     """Health check endpoint"""
-    return jsonify({'status': 'healthy', 'service': 'CallTrack API'})
+    return jsonify({'status': 'healthy', 'service': 'OptionTracker API'})
 
 
 @app.route('/api/price/<ticker>', methods=['GET'])
@@ -292,6 +295,6 @@ def get_contract_details():
 
 
 if __name__ == '__main__':
-    print("🚀 CallTrack API Server starting...")
+    print("🚀 OptionTracker API Server starting...")
     print("📊 Access at: http://localhost:5001")
     app.run(debug=True, host='0.0.0.0', port=5001)

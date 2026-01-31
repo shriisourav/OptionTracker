@@ -1,5 +1,10 @@
-// OptionTracker - Main Application
-// Complete rewrite with robust P/L Calculator
+/**
+ * OptionTracker - Main Application
+ * Professional options analysis platform
+ * 
+ * Copyright (c) 2026 Sourav Shrivastava. All rights reserved.
+ * Licensed under the MIT License. See LICENSE file for details.
+ */
 
 // ============================================
 // API Configuration
@@ -45,7 +50,6 @@ const state = {
     chartInstance: null,
     watchlist: [],
     currentPage: 'options',
-    // P/L Calculator state - isolated to prevent stale data
     plCalculator: {
         lastCalcTime: 0,
         isCalculating: false
@@ -65,7 +69,20 @@ function init() {
     setupEventListeners();
     loadWatchlistFromStorage();
     el.tickerInput.value = state.ticker;
+
+    // Wake up backend early (reduces cold start wait)
+    wakeUpBackend();
+
     loadStock(state.ticker);
+}
+
+// Pre-warm the backend to reduce cold start time
+async function wakeUpBackend() {
+    try {
+        fetch(`${API_BASE}/health`).catch(() => { });
+    } catch (e) {
+        // Ignore errors - just trying to wake it up
+    }
 }
 
 function cacheElements() {
@@ -124,11 +141,12 @@ function setupEventListeners() {
         resetPLResults();
     });
 
-    // P/L Calculator - NEW: Uses dedicated calculate function
+    // P/L Calculator
     el.calculatePL?.addEventListener('click', handleCalculatePL);
 
-    // Reset P/L when target price changes
+    // Reset P/L when inputs change
     el.targetPrice?.addEventListener('input', resetPLResults);
+    el.targetDate?.addEventListener('change', resetPLResults);
 
     // Navigation
     document.querySelectorAll('.nav-link').forEach(link => {
@@ -143,7 +161,7 @@ function setupEventListeners() {
 }
 
 // ============================================
-// P/L Calculator - FRESH IMPLEMENTATION
+// P/L Calculator - FIXED: Now uses target date
 // ============================================
 
 function resetPLResults() {
@@ -151,7 +169,6 @@ function resetPLResults() {
 }
 
 function setDefaultTargetPrice() {
-    // Set a reasonable default based on current price and option type
     if (el.targetPrice && state.currentPrice > 0) {
         const defaultMultiplier = state.optionType === 'calls' ? 1.10 : 0.90;
         const suggestedTarget = (state.currentPrice * defaultMultiplier).toFixed(2);
@@ -160,18 +177,10 @@ function setDefaultTargetPrice() {
 }
 
 function handleCalculatePL() {
-    // Prevent double-clicks
-    if (state.plCalculator.isCalculating) {
-        console.log('P/L calculation already in progress');
-        return;
-    }
+    if (state.plCalculator.isCalculating) return;
 
-    // Debounce - prevent rapid calculations
     const now = Date.now();
-    if (now - state.plCalculator.lastCalcTime < 300) {
-        console.log('P/L calculation debounced');
-        return;
-    }
+    if (now - state.plCalculator.lastCalcTime < 300) return;
 
     state.plCalculator.isCalculating = true;
     state.plCalculator.lastCalcTime = now;
@@ -184,128 +193,151 @@ function handleCalculatePL() {
 }
 
 function calculatePL() {
-    // Step 1: Get current contract data FRESH from chain
+    // Step 1: Get current contract data
     const currentDate = state.selectedDate;
     const currentStrike = state.selectedStrike;
     const currentType = state.optionType;
 
     console.log('=== P/L CALCULATION START ===');
-    console.log('State:', { currentDate, currentStrike, currentType, currentPrice: state.currentPrice });
 
     if (!currentDate || !currentStrike) {
-        showPLError('Please select an expiration date and strike price first');
+        showPLError('Select a contract first');
         return;
     }
 
-    // Find the date in chain
+    // Find contract in chain
     const dateData = state.chainData.find(d => d.date === currentDate);
     if (!dateData) {
-        showPLError('Selected date not found in options chain');
+        showPLError('Date not found');
         return;
     }
 
-    // Find the strike in that date
     const contractData = dateData.strikes.find(s => s.strike === currentStrike);
     if (!contractData) {
-        showPLError('Selected strike not found for this date');
+        showPLError('Strike not found');
         return;
     }
 
     // Step 2: Get input values
     let targetPriceStr = el.targetPrice?.value?.trim() || '';
-    let targetPrice;
+    let targetPrice = targetPriceStr ? parseFloat(targetPriceStr) : state.currentPrice;
 
-    if (targetPriceStr === '') {
-        // No target entered - use current stock price
-        targetPrice = state.currentPrice;
-        console.log('No target entered, using current price:', targetPrice);
-    } else {
-        targetPrice = parseFloat(targetPriceStr);
-    }
-
-    // Validate target price is reasonable
     if (isNaN(targetPrice) || targetPrice <= 0) {
-        showPLError('Please enter a valid target price greater than 0');
+        showPLError('Enter valid target price');
         return;
-    }
-
-    // Warn if target seems unreasonable (more than 3x or less than 1/3 of current)
-    if (targetPrice > state.currentPrice * 3 || targetPrice < state.currentPrice / 3) {
-        console.warn(`Target price $${targetPrice} seems extreme compared to current $${state.currentPrice.toFixed(2)}`);
     }
 
     const qty = Math.max(1, parseInt(el.contractQty?.value) || 1);
     const mid = contractData.mid || 0;
     const strike = currentStrike;
-
-    console.log('Contract data:', { mid, strike, qty });
+    const iv = contractData.impliedVolatility || 0.3;
 
     if (mid <= 0) {
-        showPLError('No valid price data for this contract');
+        showPLError('No price data');
         return;
     }
 
-    // Step 3: Calculate P/L
-    // Cost = mid price × 100 shares × quantity
+    // Step 3: Get target date and calculate days
+    const targetDateValue = el.targetDate?.value || '';
+    const expirationDate = new Date(currentDate);
+    const today = new Date();
+
+    let evaluationDate;
+    let daysToExpiration;
+    let daysToEvaluation;
+
+    if (targetDateValue && targetDateValue !== '') {
+        // User selected a specific date
+        evaluationDate = new Date(targetDateValue);
+        daysToEvaluation = Math.max(0, Math.ceil((evaluationDate - today) / (1000 * 60 * 60 * 24)));
+        daysToExpiration = Math.max(0, Math.ceil((expirationDate - evaluationDate) / (1000 * 60 * 60 * 24)));
+    } else {
+        // "At Expiration" selected
+        evaluationDate = expirationDate;
+        daysToEvaluation = Math.max(0, Math.ceil((expirationDate - today) / (1000 * 60 * 60 * 24)));
+        daysToExpiration = 0;
+    }
+
+    console.log('Dates:', {
+        expiration: currentDate,
+        evaluation: evaluationDate.toISOString().split('T')[0],
+        daysToExpiration,
+        daysToEvaluation
+    });
+
+    // Step 4: Calculate option value
     const costPerContract = mid * 100;
     const totalCost = costPerContract * qty;
 
-    // Intrinsic value at target price
-    let intrinsicValue = 0;
-    if (currentType === 'calls') {
-        // Call: value = max(0, target - strike)
-        intrinsicValue = Math.max(0, targetPrice - strike);
+    let optionValueAtTarget;
+
+    if (daysToExpiration === 0) {
+        // AT EXPIRATION: Pure intrinsic value
+        let intrinsicValue = 0;
+        if (currentType === 'calls') {
+            intrinsicValue = Math.max(0, targetPrice - strike);
+        } else {
+            intrinsicValue = Math.max(0, strike - targetPrice);
+        }
+        optionValueAtTarget = intrinsicValue * 100 * qty;
+        console.log('At expiration - intrinsic only:', intrinsicValue);
     } else {
-        // Put: value = max(0, strike - target)
-        intrinsicValue = Math.max(0, strike - targetPrice);
+        // BEFORE EXPIRATION: Estimate with time value using simplified Black-Scholes approximation
+        const timeToExp = daysToExpiration / 365;
+        const intrinsicValue = currentType === 'calls'
+            ? Math.max(0, targetPrice - strike)
+            : Math.max(0, strike - targetPrice);
+
+        // Simplified time value estimation
+        // Time value decays proportionally to sqrt of time remaining
+        const originalDaysToExp = Math.ceil((expirationDate - today) / (1000 * 60 * 60 * 24));
+        const timeDecayFactor = originalDaysToExp > 0 ? Math.sqrt(daysToExpiration / originalDaysToExp) : 0;
+
+        // Current time value (premium - intrinsic)
+        const currentIntrinsic = currentType === 'calls'
+            ? Math.max(0, state.currentPrice - strike)
+            : Math.max(0, strike - state.currentPrice);
+        const currentTimeValue = Math.max(0, mid - currentIntrinsic);
+
+        // Estimated time value at evaluation date
+        const estimatedTimeValue = currentTimeValue * timeDecayFactor;
+
+        // Total estimated option price
+        const estimatedPrice = intrinsicValue + estimatedTimeValue;
+        optionValueAtTarget = estimatedPrice * 100 * qty;
+
+        console.log('Before expiration:', {
+            intrinsicValue,
+            currentTimeValue,
+            timeDecayFactor: timeDecayFactor.toFixed(3),
+            estimatedTimeValue: estimatedTimeValue.toFixed(2),
+            estimatedPrice: estimatedPrice.toFixed(2)
+        });
     }
 
-    // Option value = intrinsic × 100 × qty
-    const optionValueAtTarget = intrinsicValue * 100 * qty;
-
-    // Profit/Loss = Option Value - Cost
+    // Calculate P/L
     const profitLoss = optionValueAtTarget - totalCost;
-
-    // Return percentage
     const returnPct = totalCost > 0 ? (profitLoss / totalCost) * 100 : 0;
 
-    // Step 4: Display results
+    // Display results
     displayPLResults({
         optionValue: optionValueAtTarget,
         cost: totalCost,
         pl: profitLoss,
-        returnPct: returnPct,
-        // Debug info
-        ticker: state.ticker,
-        strike: strike,
-        type: currentType,
-        date: currentDate,
-        mid: mid,
-        qty: qty,
-        targetPrice: targetPrice
+        returnPct: returnPct
     });
 
-    // Log for debugging
-    console.log('========== P/L CALCULATION ==========');
-    console.log(`Contract: ${state.ticker} $${strike}${currentType === 'calls' ? 'C' : 'P'} exp ${currentDate}`);
-    console.log(`Mid Price: $${mid.toFixed(2)} per share`);
-    console.log(`Quantity: ${qty} contract(s)`);
-    console.log(`Total Cost: $${totalCost.toFixed(2)}`);
-    console.log(`Target Price: $${targetPrice.toFixed(2)}`);
-    console.log(`Intrinsic Value: $${intrinsicValue.toFixed(2)} per share`);
-    console.log(`Option Value at Target: $${optionValueAtTarget.toFixed(2)}`);
-    console.log(`Profit/Loss: ${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)} (${returnPct.toFixed(1)}%)`);
-    console.log('=====================================');
+    console.log('========== P/L RESULT ==========');
+    console.log(`Contract: ${state.ticker} $${strike}${currentType === 'calls' ? 'C' : 'P'}`);
+    console.log(`Target: $${targetPrice.toFixed(2)} by ${evaluationDate.toISOString().split('T')[0]}`);
+    console.log(`Value: $${optionValueAtTarget.toFixed(2)}, Cost: $${totalCost.toFixed(2)}`);
+    console.log(`P/L: ${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)} (${returnPct.toFixed(1)}%)`);
+    console.log('================================');
 }
 
 function displayPLResults(data) {
-    if (el.optionValue) {
-        el.optionValue.textContent = `$${data.optionValue.toFixed(2)}`;
-    }
-
-    if (el.costBasis) {
-        el.costBasis.textContent = `$${data.cost.toFixed(2)}`;
-    }
+    if (el.optionValue) el.optionValue.textContent = `$${data.optionValue.toFixed(2)}`;
+    if (el.costBasis) el.costBasis.textContent = `$${data.cost.toFixed(2)}`;
 
     if (el.profitLoss) {
         const sign = data.pl >= 0 ? '+' : '';
@@ -319,7 +351,6 @@ function displayPLResults(data) {
         el.returnPct.className = data.returnPct >= 0 ? 'green' : 'red';
     }
 
-    // Update highlight row color
     const highlightRow = el.plResults?.querySelector('.calc-row.highlight');
     if (highlightRow) {
         highlightRow.classList.remove('profit', 'loss');
@@ -330,20 +361,14 @@ function displayPLResults(data) {
 }
 
 function showPLError(message) {
-    console.warn('P/L Calculator Error:', message);
-
-    // Show error in profitLoss element without destroying structure
+    console.warn('P/L Error:', message);
     if (el.profitLoss && el.plResults) {
-        // Show results panel
         el.plResults.classList.remove('hidden');
-
-        // Display error in the P/L field
         el.optionValue.textContent = '-';
         el.costBasis.textContent = '-';
         el.profitLoss.textContent = message;
         el.profitLoss.className = 'red';
         el.returnPct.textContent = '-';
-        el.returnPct.className = '';
     } else {
         alert(message);
     }
@@ -400,10 +425,7 @@ async function loadStock(ticker) {
     showLoading(true);
     resetPLResults();
 
-    // Clear target price when loading new stock
-    if (el.targetPrice) {
-        el.targetPrice.value = '';
-    }
+    if (el.targetPrice) el.targetPrice.value = '';
 
     try {
         const res = await fetch(`${API_BASE}/price/${ticker}`);
@@ -693,7 +715,6 @@ function updateFactorsDisplay() {
         el.infoChg.className = `card-value ${chg >= 0 ? 'green' : 'red'}`;
     }
 
-    // Greeks (estimated values)
     const delta = state.optionType === 'calls' ? 0.52 : -0.48;
     if (el.greekDelta) el.greekDelta.textContent = delta.toFixed(2);
     if (el.greekGamma) el.greekGamma.textContent = '0.03';
@@ -911,4 +932,4 @@ function generatePricePath(midPrice, idx) {
     return d;
 }
 
-console.log('🚀 OptionTracker v2.0 - Robust P/L Calculator');
+console.log('🚀 OptionTracker v2.1 - Fixed P/L with time value');

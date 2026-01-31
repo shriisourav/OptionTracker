@@ -1,5 +1,10 @@
-// OptionTracker - Authentication System
-// Supports Google OAuth with graceful fallback to demo mode
+/**
+ * OptionTracker - Authentication System
+ * Google OAuth with graceful fallback to demo mode
+ * 
+ * Copyright (c) 2026 Sourav Shrivastava. All rights reserved.
+ * Licensed under the MIT License. See LICENSE file for details.
+ */
 
 const auth = {
     user: null,
@@ -50,9 +55,6 @@ function setupAuth() {
 }
 
 function canUseGoogleOAuth() {
-    // Google OAuth requires:
-    // 1. HTTPS or localhost
-    // 2. Not file:// protocol
     const isSecureOrigin = window.location.protocol === 'https:' ||
         window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1';
@@ -63,7 +65,7 @@ function canUseGoogleOAuth() {
 function waitForGoogleScript() {
     return new Promise((resolve) => {
         let attempts = 0;
-        const maxAttempts = 20; // 2 seconds max
+        const maxAttempts = 20;
 
         const check = () => {
             if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
@@ -90,7 +92,6 @@ function initializeGoogleAuth(clientId) {
             cancel_on_tap_outside: true
         });
 
-        // Replace demo buttons with Google buttons
         renderGoogleButton('googleSignInBtn', 'medium');
         renderGoogleButton('watchlistGoogleBtn', 'large');
         console.log('✅ Google OAuth initialized');
@@ -104,7 +105,7 @@ function renderGoogleButton(containerId, size) {
     const container = document.getElementById(containerId);
     if (container && !auth.isAuthenticated && auth.googleLoaded) {
         try {
-            container.innerHTML = ''; // Clear demo button
+            container.innerHTML = '';
             google.accounts.id.renderButton(container, {
                 type: 'standard',
                 theme: 'filled_blue',
@@ -169,7 +170,7 @@ function signOut() {
     }
 
     updateAuthUI();
-    setupAuth(); // Re-render sign-in buttons
+    setupAuth();
     console.log('👋 Signed out');
 }
 
