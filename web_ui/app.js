@@ -1,6 +1,10 @@
 // OptionTracker - Main Application with Watchlist & P/L Fix
 
-const API_BASE = 'http://localhost:5001/api';
+// API Configuration - Change RENDER_URL after deploying backend
+const RENDER_BACKEND_URL = 'https://optiontracker-api.onrender.com';
+const API_BASE = window.location.hostname === 'localhost' || window.location.protocol === 'file:'
+    ? 'http://localhost:5001/api'
+    : `${RENDER_BACKEND_URL}/api`;
 
 const STOCKS = [
     { ticker: 'MSFT', name: 'Microsoft Corporation' },
