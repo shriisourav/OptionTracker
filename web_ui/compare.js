@@ -35,10 +35,10 @@ const STOCK_COLORS = [
 function initStockCompare() {
     console.log('📊 Initializing Stock Compare module');
 
-    // Set default dates (1 year range)
+    // Set default dates (2 year range - current date as end, 2 years ago as start)
     const endDate = new Date();
     const startDate = new Date();
-    startDate.setFullYear(startDate.getFullYear() - 1);
+    startDate.setFullYear(startDate.getFullYear() - 2);
 
     document.getElementById('compareEndDate').value = endDate.toISOString().split('T')[0];
     document.getElementById('compareStartDate').value = startDate.toISOString().split('T')[0];
