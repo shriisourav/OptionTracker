@@ -144,16 +144,30 @@ async function analyzeStocks() {
 // Fetch stock data from API
 async function fetchStockData(ticker, startDate, endDate) {
     try {
-        // Fetch current price
+        // Fetch current price and info
         const priceRes = await fetch(`${API_BASE}/api/price/${ticker}`);
         if (!priceRes.ok) throw new Error(`Failed to fetch ${ticker}`);
         const priceData = await priceRes.json();
 
-        // For historical data, we'll simulate based on current price
-        // In production, you'd have a dedicated history endpoint
-        const history = generatePriceHistory(priceData.price, startDate, endDate);
+        // Try to fetch historical data from backend, fallback to simulation
+        let history;
+        try {
+            const histRes = await fetch(`${API_BASE}/api/history/${ticker}?start=${startDate}&end=${endDate}`);
+            if (histRes.ok) {
+                const histData = await histRes.json();
+                if (histData.history && histData.history.length > 0) {
+                    history = histData.history;
+                } else {
+                    history = generatePriceHistory(priceData.price, startDate, endDate);
+                }
+            } else {
+                history = generatePriceHistory(priceData.price, startDate, endDate);
+            }
+        } catch {
+            history = generatePriceHistory(priceData.price, startDate, endDate);
+        }
 
-        // Calculate metrics
+        // Calculate metrics including Stochastic
         const metrics = calculateStockMetrics(priceData, history);
 
         return { metrics, history };
@@ -164,7 +178,7 @@ async function fetchStockData(ticker, startDate, endDate) {
     }
 }
 
-// Generate simulated price history (replace with real API in production)
+// Generate simulated price history (fallback when backend doesn't have historical endpoint)
 function generatePriceHistory(currentPrice, startDate, endDate) {
     const history = [];
     const start = new Date(startDate);
@@ -172,8 +186,8 @@ function generatePriceHistory(currentPrice, startDate, endDate) {
     const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
 
     // Random walk starting from estimated historical price
-    const volatility = 0.02; // 2% daily volatility
-    const drift = 0.0003; // Small upward drift
+    const volatility = 0.015 + Math.random() * 0.01; // 1.5-2.5% daily volatility
+    const drift = 0.0002 + Math.random() * 0.0003; // Small upward drift
 
     // Work backwards from current price
     let prices = [currentPrice];
@@ -197,6 +211,21 @@ function generatePriceHistory(currentPrice, startDate, endDate) {
     return history;
 }
 
+// Calculate Stochastic Oscillator (14-day %K)
+function calculateStochastic(prices, period = 14) {
+    if (prices.length < period) return null;
+
+    const recentPrices = prices.slice(-period);
+    const high = Math.max(...recentPrices);
+    const low = Math.min(...recentPrices);
+    const close = prices[prices.length - 1];
+
+    if (high === low) return 50;
+
+    const stochK = ((close - low) / (high - low)) * 100;
+    return Math.round(stochK * 10) / 10;
+}
+
 // Calculate stock metrics
 function calculateStockMetrics(priceData, history) {
     const prices = history.map(h => h.price);
@@ -212,19 +241,29 @@ function calculateStockMetrics(priceData, history) {
     // Total return
     const totalReturn = ((currentPrice - startPrice) / startPrice) * 100;
 
-    // Approximate 1-year return (using total if data is ~1 year)
-    const oneYearReturn = totalReturn;
+    // 1-year return (approximate based on last 252 trading days or available data)
+    const oneYearDays = Math.min(252, prices.length - 1);
+    const oneYearStartPrice = prices[Math.max(0, prices.length - 1 - oneYearDays)];
+    const oneYearReturn = ((currentPrice - oneYearStartPrice) / oneYearStartPrice) * 100;
 
     // Volatility (annualized std dev)
-    const avgReturn = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
-    const variance = dailyReturns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / dailyReturns.length;
+    const avgReturn = dailyReturns.length > 0
+        ? dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length
+        : 0;
+    const variance = dailyReturns.length > 0
+        ? dailyReturns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / dailyReturns.length
+        : 0;
     const dailyVol = Math.sqrt(variance);
     const annualizedVol = dailyVol * Math.sqrt(252) * 100; // Annualized
 
     // Sharpe ratio (assuming 5% risk-free rate)
     const riskFreeRate = 0.05;
-    const excessReturn = (totalReturn / 100) - riskFreeRate;
-    const sharpe = excessReturn / (annualizedVol / 100);
+    const annualReturn = totalReturn / 100 * (252 / prices.length);
+    const excessReturn = annualReturn - riskFreeRate;
+    const sharpe = annualizedVol > 0 ? excessReturn / (annualizedVol / 100) : 0;
+
+    // Stochastic Oscillator (1Y)
+    const stochastic = calculateStochastic(prices);
 
     return {
         price: currentPrice,
@@ -232,6 +271,7 @@ function calculateStockMetrics(priceData, history) {
         oneYearReturn,
         volatility: annualizedVol,
         sharpe,
+        stochastic,
         change: priceData.change,
         changePercent: priceData.changePercent
     };
@@ -243,18 +283,22 @@ function renderMetricsTable() {
     const tickers = Object.keys(compareState.stockData);
 
     if (tickers.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">No data available</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">No data available</td></tr>';
         return;
     }
 
     tbody.innerHTML = tickers.map((ticker, i) => {
         const m = compareState.stockData[ticker];
         const returnClass = m.totalReturn >= 0 ? 'style="color: var(--green)"' : 'style="color: var(--red)"';
+        const stochDisplay = m.stochastic !== null ? `${m.stochastic.toFixed(1)}%` : 'N/A';
+        // Color stochastic based on overbought/oversold levels
+        const stochColor = m.stochastic > 80 ? 'var(--red)' : (m.stochastic < 20 ? 'var(--green)' : 'var(--text-primary)');
 
         return `
             <tr>
                 <td style="font-weight: 600; color: ${STOCK_COLORS[i % STOCK_COLORS.length]}">${ticker}</td>
                 <td>$${m.price.toFixed(2)}</td>
+                <td style="color: ${stochColor}">${stochDisplay}</td>
                 <td ${returnClass}>${m.oneYearReturn >= 0 ? '+' : ''}${m.oneYearReturn.toFixed(1)}%</td>
                 <td ${returnClass}>${m.totalReturn >= 0 ? '+' : ''}${m.totalReturn.toFixed(1)}%</td>
                 <td>${m.volatility.toFixed(1)}%</td>

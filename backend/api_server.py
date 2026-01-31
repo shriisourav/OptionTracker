@@ -84,6 +84,45 @@ def get_price(ticker):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/history/<ticker>', methods=['GET'])
+def get_history(ticker):
+    """Get historical stock price data for stock comparison"""
+    try:
+        import yfinance as yf
+        
+        start_date = request.args.get('start', None)
+        end_date = request.args.get('end', None)
+        
+        stock = yf.Ticker(ticker)
+        
+        # Fetch historical data
+        if start_date and end_date:
+            hist = stock.history(start=start_date, end=end_date)
+        else:
+            # Default to 1 year
+            hist = stock.history(period="1y")
+        
+        if hist.empty:
+            return jsonify({'error': 'No historical data available'}), 400
+        
+        # Convert to list of {date, price} objects
+        history = []
+        for date, row in hist.iterrows():
+            close_price = sanitize_value(row.get('Close', 0))
+            if close_price > 0:
+                history.append({
+                    'date': date.strftime('%Y-%m-%d'),
+                    'price': round(close_price, 2)
+                })
+        
+        return jsonify({
+            'ticker': ticker.upper(),
+            'history': history
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/dates/<ticker>', methods=['GET'])
 def get_dates(ticker):
     """Get available expiration dates"""
