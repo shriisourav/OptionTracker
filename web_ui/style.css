@@ -1188,9 +1188,12 @@ body {
    ======================================== */
 
 #comparePage {
-    display: block;
     padding: 0;
     overflow-y: auto;
+}
+
+#comparePage.active {
+    display: block;
 }
 
 .compare-container {
