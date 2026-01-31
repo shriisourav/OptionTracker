@@ -15,7 +15,8 @@ const compareState = {
     stockData: {},
     priceHistory: {},
     isRelativeScale: false,
-    chart: null
+    chart: null,
+    initialized: false
 };
 
 // Chart colors matching the OptionTracker theme
@@ -573,18 +574,28 @@ function exportChart() {
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize on page load if on compare page
-    if (document.getElementById('comparePage')) {
-        initStockCompare();
-    }
-});
+    console.log('📊 Stock Compare module loaded');
 
-// Also initialize when switching to compare page via navigation
-document.querySelectorAll('.nav-link').forEach(link => {
-    link.addEventListener('click', (e) => {
-        const page = e.target.dataset.page;
-        if (page === 'compare' && !compareState.chart) {
-            setTimeout(initStockCompare, 100);
-        }
+    // Attach nav link listeners after DOM is ready
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            const page = e.target.dataset?.page || e.currentTarget.dataset?.page;
+            if (page === 'compare') {
+                // Small delay to let page become visible
+                setTimeout(() => {
+                    if (!compareState.initialized) {
+                        initStockCompare();
+                        compareState.initialized = true;
+                    }
+                }, 150);
+            }
+        });
     });
+
+    // Initialize immediately if compare page is active
+    const comparePage = document.getElementById('comparePage');
+    if (comparePage && comparePage.classList.contains('active')) {
+        initStockCompare();
+        compareState.initialized = true;
+    }
 });
