@@ -1,11 +1,17 @@
-// OptionTracker - Main Application with Watchlist & P/L Fix
+// OptionTracker - Main Application
+// Complete rewrite with robust P/L Calculator
 
-// API Configuration - Uses Render backend in production
+// ============================================
+// API Configuration
+// ============================================
 const RENDER_BACKEND_URL = 'https://optiontracker.onrender.com';
 const API_BASE = window.location.hostname === 'localhost' || window.location.protocol === 'file:'
     ? 'http://localhost:5001/api'
     : `${RENDER_BACKEND_URL}/api`;
 
+// ============================================
+// Stock Data
+// ============================================
 const STOCKS = [
     { ticker: 'MSFT', name: 'Microsoft Corporation' },
     { ticker: 'AAPL', name: 'Apple Inc.' },
@@ -21,6 +27,9 @@ const STOCKS = [
     { ticker: 'NFLX', name: 'Netflix Inc.' }
 ];
 
+// ============================================
+// Application State
+// ============================================
 const state = {
     ticker: 'MSFT',
     stockData: {},
@@ -35,13 +44,20 @@ const state = {
     comparisonData: null,
     chartInstance: null,
     watchlist: [],
-    currentPage: 'options'
+    currentPage: 'options',
+    // P/L Calculator state - isolated to prevent stale data
+    plCalculator: {
+        lastCalcTime: 0,
+        isCalculating: false
+    }
 };
 
-// DOM Elements
+// DOM Elements cache
 const el = {};
 
-// Initialize on DOM ready
+// ============================================
+// Initialization
+// ============================================
 document.addEventListener('DOMContentLoaded', init);
 
 function init() {
@@ -53,67 +69,20 @@ function init() {
 }
 
 function cacheElements() {
-    el.tickerInput = document.getElementById('tickerInput');
-    el.autocomplete = document.getElementById('autocomplete');
-    el.stockTicker = document.getElementById('stockTicker');
-    el.stockName = document.getElementById('stockName');
-    el.stockPrice = document.getElementById('stockPrice');
-    el.stockChange = document.getElementById('stockChange');
-    el.prevClose = document.getElementById('prevClose');
-    el.dayRange = document.getElementById('dayRange');
-    el.weekRange = document.getElementById('weekRange');
-    el.volume = document.getElementById('volume');
-    el.marketCap = document.getElementById('marketCap');
-    el.peRatio = document.getElementById('peRatio');
-    el.divYield = document.getElementById('divYield');
-    el.divRate = document.getElementById('divRate');
-    el.beta = document.getElementById('beta');
-    el.overviewTab = document.getElementById('overviewTab');
-    el.fundamentalsTab = document.getElementById('fundamentalsTab');
-    el.dateCount = document.getElementById('dateCount');
-    el.datesList = document.getElementById('datesList');
-    el.atmStrike = document.getElementById('atmStrike');
-    el.strikesContainer = document.getElementById('strikesContainer');
-    el.priceModeBtn = document.getElementById('priceModeBtn');
-    el.dateModeBtn = document.getElementById('dateModeBtn');
-    el.optionType = document.getElementById('optionType');
-    el.contractLabel = document.getElementById('contractLabel');
-    el.chartTitle = document.getElementById('chartTitle');
-    el.chartLegend = document.getElementById('chartLegend');
-    el.priceChart = document.getElementById('priceChart');
-    el.factorsContent = document.getElementById('factorsContent');
-    el.greeksContent = document.getElementById('greeksContent');
-    el.infoBid = document.getElementById('infoBid');
-    el.infoMid = document.getElementById('infoMid');
-    el.infoAsk = document.getElementById('infoAsk');
-    el.infoSpread = document.getElementById('infoSpread');
-    el.infoIV = document.getElementById('infoIV');
-    el.infoVol = document.getElementById('infoVol');
-    el.infoOI = document.getElementById('infoOI');
-    el.infoChg = document.getElementById('infoChg');
-    el.greekDelta = document.getElementById('greekDelta');
-    el.greekGamma = document.getElementById('greekGamma');
-    el.greekTheta = document.getElementById('greekTheta');
-    el.greekVega = document.getElementById('greekVega');
-    el.greekRho = document.getElementById('greekRho');
-    el.greekOmega = document.getElementById('greekOmega');
-    el.contractQty = document.getElementById('contractQty');
-    el.premiumPer = document.getElementById('premiumPer');
-    el.totalCost = document.getElementById('totalCost');
-    el.maxLoss = document.getElementById('maxLoss');
-    el.breakeven = document.getElementById('breakeven');
-    el.targetPrice = document.getElementById('targetPrice');
-    el.targetDate = document.getElementById('targetDate');
-    el.calculatePL = document.getElementById('calculatePL');
-    el.plResults = document.getElementById('plResults');
-    el.optionValue = document.getElementById('optionValue');
-    el.costBasis = document.getElementById('costBasis');
-    el.profitLoss = document.getElementById('profitLoss');
-    el.returnPct = document.getElementById('returnPct');
-    el.loadingOverlay = document.getElementById('loadingOverlay');
-    el.addWatchlistBtn = document.getElementById('addWatchlistBtn');
-    el.watchlistItems = document.getElementById('watchlistItems');
-    el.watchlistEmpty = document.getElementById('watchlistEmpty');
+    const ids = [
+        'tickerInput', 'autocomplete', 'stockTicker', 'stockName', 'stockPrice', 'stockChange',
+        'prevClose', 'dayRange', 'weekRange', 'volume', 'marketCap', 'peRatio', 'divYield',
+        'divRate', 'beta', 'overviewTab', 'fundamentalsTab', 'dateCount', 'datesList',
+        'atmStrike', 'strikesContainer', 'priceModeBtn', 'dateModeBtn', 'optionType',
+        'contractLabel', 'chartTitle', 'chartLegend', 'priceChart', 'factorsContent',
+        'greeksContent', 'infoBid', 'infoMid', 'infoAsk', 'infoSpread', 'infoIV', 'infoVol',
+        'infoOI', 'infoChg', 'greekDelta', 'greekGamma', 'greekTheta', 'greekVega',
+        'greekRho', 'greekOmega', 'contractQty', 'premiumPer', 'totalCost', 'maxLoss',
+        'breakeven', 'targetPrice', 'targetDate', 'calculatePL', 'plResults', 'optionValue',
+        'costBasis', 'profitLoss', 'returnPct', 'loadingOverlay', 'addWatchlistBtn',
+        'watchlistItems', 'watchlistEmpty'
+    ];
+    ids.forEach(id => { el[id] = document.getElementById(id); });
 }
 
 function setupEventListeners() {
@@ -138,29 +107,30 @@ function setupEventListeners() {
     el.dateModeBtn?.addEventListener('click', () => setMode('date'));
 
     // Option type
-    el.optionType?.addEventListener('change', e => { state.optionType = e.target.value; loadFullChain(); });
+    el.optionType?.addEventListener('change', e => {
+        state.optionType = e.target.value;
+        resetPLResults();
+        loadFullChain();
+    });
 
     // Info tabs
     document.querySelectorAll('.info-tab').forEach(tab => {
         tab.addEventListener('click', () => switchInfoTab(tab.dataset.info));
     });
 
-    // Contract quantity - recalculate on change
+    // Contract quantity
     el.contractQty?.addEventListener('input', () => {
         updateCalculator();
-        // Reset P/L results when quantity changes
-        el.plResults?.classList.add('hidden');
+        resetPLResults();
     });
 
-    // P/L Calculator - FIX: Always recalculate with current data
-    el.calculatePL?.addEventListener('click', calculateProfitLoss);
+    // P/L Calculator - NEW: Uses dedicated calculate function
+    el.calculatePL?.addEventListener('click', handleCalculatePL);
 
     // Reset P/L when target price changes
-    el.targetPrice?.addEventListener('input', () => {
-        el.plResults?.classList.add('hidden');
-    });
+    el.targetPrice?.addEventListener('input', resetPLResults);
 
-    // Navigation links
+    // Navigation
     document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', e => {
             e.preventDefault();
@@ -168,31 +138,191 @@ function setupEventListeners() {
         });
     });
 
-    // Add to Watchlist
+    // Watchlist
     el.addWatchlistBtn?.addEventListener('click', toggleWatchlist);
 }
 
-// Navigation
-function navigateTo(page) {
-    state.currentPage = page;
+// ============================================
+// P/L Calculator - FRESH IMPLEMENTATION
+// ============================================
 
-    // Update nav links
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.classList.toggle('active', link.dataset.page === page);
-    });
+function resetPLResults() {
+    el.plResults?.classList.add('hidden');
+}
 
-    // Update page content
-    document.querySelectorAll('.page-content').forEach(p => {
-        p.classList.toggle('active', p.id === `${page}Page`);
-    });
+function handleCalculatePL() {
+    // Prevent double-clicks
+    if (state.plCalculator.isCalculating) {
+        console.log('P/L calculation already in progress');
+        return;
+    }
 
-    // Render watchlist if switching to that page
-    if (page === 'watchlist') {
-        renderWatchlist();
+    // Debounce - prevent rapid calculations
+    const now = Date.now();
+    if (now - state.plCalculator.lastCalcTime < 300) {
+        console.log('P/L calculation debounced');
+        return;
+    }
+
+    state.plCalculator.isCalculating = true;
+    state.plCalculator.lastCalcTime = now;
+
+    try {
+        calculatePL();
+    } finally {
+        state.plCalculator.isCalculating = false;
     }
 }
 
-// Ticker handling
+function calculatePL() {
+    // Step 1: Get current contract data FRESH from chain
+    const currentDate = state.selectedDate;
+    const currentStrike = state.selectedStrike;
+    const currentType = state.optionType;
+
+    if (!currentDate || !currentStrike) {
+        showPLError('Please select an expiration date and strike price first');
+        return;
+    }
+
+    // Find the date in chain
+    const dateData = state.chainData.find(d => d.date === currentDate);
+    if (!dateData) {
+        showPLError('Selected date not found in options chain');
+        return;
+    }
+
+    // Find the strike in that date
+    const contractData = dateData.strikes.find(s => s.strike === currentStrike);
+    if (!contractData) {
+        showPLError('Selected strike not found for this date');
+        return;
+    }
+
+    // Step 2: Get input values
+    const targetPriceStr = el.targetPrice?.value || '';
+    const targetPrice = targetPriceStr ? parseFloat(targetPriceStr) : state.currentPrice;
+
+    if (isNaN(targetPrice) || targetPrice < 0) {
+        showPLError('Please enter a valid target price');
+        return;
+    }
+
+    const qty = Math.max(1, parseInt(el.contractQty?.value) || 1);
+    const mid = contractData.mid || 0;
+    const strike = currentStrike;
+
+    if (mid <= 0) {
+        showPLError('No valid price data for this contract');
+        return;
+    }
+
+    // Step 3: Calculate P/L
+    // Cost = mid price × 100 shares × quantity
+    const costPerContract = mid * 100;
+    const totalCost = costPerContract * qty;
+
+    // Intrinsic value at target price
+    let intrinsicValue = 0;
+    if (currentType === 'calls') {
+        // Call: value = max(0, target - strike)
+        intrinsicValue = Math.max(0, targetPrice - strike);
+    } else {
+        // Put: value = max(0, strike - target)
+        intrinsicValue = Math.max(0, strike - targetPrice);
+    }
+
+    // Option value = intrinsic × 100 × qty
+    const optionValueAtTarget = intrinsicValue * 100 * qty;
+
+    // Profit/Loss = Option Value - Cost
+    const profitLoss = optionValueAtTarget - totalCost;
+
+    // Return percentage
+    const returnPct = totalCost > 0 ? (profitLoss / totalCost) * 100 : 0;
+
+    // Step 4: Display results
+    displayPLResults({
+        optionValue: optionValueAtTarget,
+        cost: totalCost,
+        pl: profitLoss,
+        returnPct: returnPct,
+        // Debug info
+        ticker: state.ticker,
+        strike: strike,
+        type: currentType,
+        date: currentDate,
+        mid: mid,
+        qty: qty,
+        targetPrice: targetPrice
+    });
+
+    // Log for debugging
+    console.log('========== P/L CALCULATION ==========');
+    console.log(`Contract: ${state.ticker} $${strike}${currentType === 'calls' ? 'C' : 'P'} exp ${currentDate}`);
+    console.log(`Mid Price: $${mid.toFixed(2)} per share`);
+    console.log(`Quantity: ${qty} contract(s)`);
+    console.log(`Total Cost: $${totalCost.toFixed(2)}`);
+    console.log(`Target Price: $${targetPrice.toFixed(2)}`);
+    console.log(`Intrinsic Value: $${intrinsicValue.toFixed(2)} per share`);
+    console.log(`Option Value at Target: $${optionValueAtTarget.toFixed(2)}`);
+    console.log(`Profit/Loss: ${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)} (${returnPct.toFixed(1)}%)`);
+    console.log('=====================================');
+}
+
+function displayPLResults(data) {
+    if (el.optionValue) {
+        el.optionValue.textContent = `$${data.optionValue.toFixed(2)}`;
+    }
+
+    if (el.costBasis) {
+        el.costBasis.textContent = `$${data.cost.toFixed(2)}`;
+    }
+
+    if (el.profitLoss) {
+        const sign = data.pl >= 0 ? '+' : '';
+        el.profitLoss.textContent = `${sign}$${data.pl.toFixed(2)}`;
+        el.profitLoss.className = data.pl >= 0 ? 'green' : 'red';
+    }
+
+    if (el.returnPct) {
+        const sign = data.returnPct >= 0 ? '+' : '';
+        el.returnPct.textContent = `${sign}${data.returnPct.toFixed(1)}%`;
+        el.returnPct.className = data.returnPct >= 0 ? 'green' : 'red';
+    }
+
+    // Update highlight row color
+    const highlightRow = el.plResults?.querySelector('.calc-row.highlight');
+    if (highlightRow) {
+        highlightRow.classList.remove('profit', 'loss');
+        highlightRow.classList.add(data.pl >= 0 ? 'profit' : 'loss');
+    }
+
+    el.plResults?.classList.remove('hidden');
+}
+
+function showPLError(message) {
+    console.warn('P/L Calculator:', message);
+    alert(message);
+}
+
+// ============================================
+// Navigation
+// ============================================
+function navigateTo(page) {
+    state.currentPage = page;
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.classList.toggle('active', link.dataset.page === page);
+    });
+    document.querySelectorAll('.page-content').forEach(p => {
+        p.classList.toggle('active', p.id === `${page}Page`);
+    });
+    if (page === 'watchlist') renderWatchlist();
+}
+
+// ============================================
+// Ticker Search
+// ============================================
 function handleTickerInput(e) {
     const value = e.target.value.toUpperCase();
     const matches = STOCKS.filter(s =>
@@ -218,10 +348,14 @@ function renderAutocomplete(matches) {
     });
 }
 
+// ============================================
+// Stock Loading
+// ============================================
 async function loadStock(ticker) {
     if (!ticker) return;
     state.ticker = ticker.toUpperCase();
     showLoading(true);
+    resetPLResults();
 
     try {
         const res = await fetch(`${API_BASE}/price/${ticker}`);
@@ -268,8 +402,12 @@ function updateStockDisplay() {
     if (el.beta) el.beta.textContent = d.beta?.toFixed(2) || '-';
 }
 
+// ============================================
+// Options Chain
+// ============================================
 async function loadFullChain() {
     showLoading(true);
+    resetPLResults();
 
     try {
         const res = await fetch(`${API_BASE}/chain/${state.ticker}?type=${state.optionType}`);
@@ -286,9 +424,6 @@ async function loadFullChain() {
         if (state.chainData.length > 0) {
             selectDate(state.chainData[0].date);
         }
-
-        // Reset P/L results when chain changes
-        el.plResults?.classList.add('hidden');
 
     } catch (e) {
         console.error('Error loading chain:', e);
@@ -319,13 +454,12 @@ function renderDatesList() {
 
 function selectDate(date) {
     state.selectedDate = date;
+    resetPLResults();
 
-    // Update list
     el.datesList?.querySelectorAll('.date-item').forEach(item => {
         item.classList.toggle('active', item.dataset.date === date);
     });
 
-    // Render strikes
     const dateData = state.chainData.find(d => d.date === date);
     if (dateData) {
         renderStrikesCentered(dateData.strikes);
@@ -336,8 +470,6 @@ function selectDate(date) {
         }
     }
 
-    // Reset P/L results when date changes
-    el.plResults?.classList.add('hidden');
     updateWatchlistButton();
 }
 
@@ -374,6 +506,7 @@ function renderStrikesCentered(strikes) {
 
 async function selectStrike(strike) {
     state.selectedStrike = strike;
+    resetPLResults();
 
     el.strikesContainer?.querySelectorAll('.strike-item').forEach(item => {
         item.classList.toggle('selected', parseFloat(item.dataset.strike) === strike);
@@ -392,9 +525,6 @@ async function selectStrike(strike) {
 
     await loadComparison();
     updateChart();
-
-    // Reset P/L results when strike changes
-    el.plResults?.classList.add('hidden');
     updateWatchlistButton();
 }
 
@@ -419,6 +549,9 @@ async function loadComparison() {
     }
 }
 
+// ============================================
+// Chart
+// ============================================
 function updateChart() {
     const ctx = el.priceChart?.getContext('2d');
     if (!ctx) return;
@@ -490,6 +623,9 @@ function updateChart() {
     });
 }
 
+// ============================================
+// Factors & Calculator Display
+// ============================================
 function updateFactorsDisplay() {
     const s = state.selectedData;
     if (!s) return;
@@ -508,7 +644,7 @@ function updateFactorsDisplay() {
         el.infoChg.className = `card-value ${chg >= 0 ? 'green' : 'red'}`;
     }
 
-    // Greeks
+    // Greeks (estimated values)
     const delta = state.optionType === 'calls' ? 0.52 : -0.48;
     if (el.greekDelta) el.greekDelta.textContent = delta.toFixed(2);
     if (el.greekGamma) el.greekGamma.textContent = '0.03';
@@ -541,68 +677,9 @@ function populateTargetDates() {
     }
 }
 
-// P/L Calculator - FIXED: Always fetches fresh data from current selection
-function calculateProfitLoss() {
-    // Always get fresh data from current state
-    const dateData = state.chainData.find(d => d.date === state.selectedDate);
-    const contractData = dateData?.strikes.find(s => s.strike === state.selectedStrike);
-
-    // Update state.selectedData with fresh data
-    if (contractData) {
-        state.selectedData = contractData;
-    }
-
-    const targetPrice = parseFloat(el.targetPrice?.value) || state.currentPrice;
-    const s = state.selectedData;
-
-    if (!s || !state.selectedStrike) {
-        console.warn('No contract selected - please select a strike first');
-        alert('Please select a contract first');
-        return;
-    }
-
-    const mid = s.mid || 0;
-    const strike = state.selectedStrike;
-    const qty = parseInt(el.contractQty?.value) || 1;
-    state.contractQty = qty;
-    const cost = mid * 100 * qty;
-
-    let intrinsic = 0;
-    if (state.optionType === 'calls') {
-        intrinsic = Math.max(0, targetPrice - strike);
-    } else {
-        intrinsic = Math.max(0, strike - targetPrice);
-    }
-
-    const optValue = intrinsic * 100 * qty;
-    const pl = optValue - cost;
-    const returnPct = cost > 0 ? (pl / cost) * 100 : 0;
-
-    console.log(`P/L Calc: ${state.ticker} $${strike}${state.optionType === 'calls' ? 'C' : 'P'} @ ${state.selectedDate}`);
-    console.log(`  Target: $${targetPrice}, Mid: $${mid}, Qty: ${qty}`);
-    console.log(`  Value: $${optValue.toFixed(2)}, Cost: $${cost.toFixed(2)}, P/L: $${pl.toFixed(2)}`);
-
-    if (el.optionValue) el.optionValue.textContent = `$${optValue.toFixed(2)}`;
-    if (el.costBasis) el.costBasis.textContent = `$${cost.toFixed(2)}`;
-    if (el.profitLoss) {
-        el.profitLoss.textContent = `${pl >= 0 ? '+' : ''}$${pl.toFixed(2)}`;
-        el.profitLoss.className = pl >= 0 ? 'green' : 'red';
-    }
-    if (el.returnPct) {
-        el.returnPct.textContent = `${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(1)}%`;
-        el.returnPct.className = returnPct >= 0 ? 'green' : 'red';
-    }
-
-    const highlightRow = el.plResults?.querySelector('.calc-row.highlight');
-    if (highlightRow) {
-        highlightRow.classList.remove('profit', 'loss');
-        highlightRow.classList.add(pl >= 0 ? 'profit' : 'loss');
-    }
-
-    el.plResults?.classList.remove('hidden');
-}
-
-// Watchlist - Saves full contract (Ticker + Strike + Date + Type)
+// ============================================
+// Watchlist
+// ============================================
 function getWatchlistKey() {
     return `${state.ticker}_${state.selectedStrike}_${state.selectedDate}_${state.optionType}`;
 }
@@ -649,7 +726,6 @@ function loadWatchlistFromStorage() {
     }
 }
 
-// Called from auth.js when user signs in
 window.loadWatchlist = loadWatchlistFromStorage;
 
 function renderWatchlist() {
@@ -676,7 +752,6 @@ function renderWatchlist() {
             </div>
         `).join('');
 
-        // Click to navigate to contract
         el.watchlistItems.querySelectorAll('.watchlist-item').forEach(item => {
             item.addEventListener('click', e => {
                 if (e.target.classList.contains('remove-watchlist')) return;
@@ -695,7 +770,6 @@ function renderWatchlist() {
             });
         });
 
-        // Remove button
         el.watchlistItems.querySelectorAll('.remove-watchlist').forEach(btn => {
             btn.addEventListener('click', e => {
                 e.stopPropagation();
@@ -708,7 +782,9 @@ function renderWatchlist() {
     }
 }
 
-// Tab switching
+// ============================================
+// Tab Switching
+// ============================================
 function switchStockTab(tab) {
     document.querySelectorAll('.stock-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
     el.overviewTab?.classList.toggle('hidden', tab !== 'overview');
@@ -730,18 +806,60 @@ function setMode(mode) {
     }
 }
 
+// ============================================
+// Utilities
+// ============================================
 function findATM(strikes) {
     return strikes.reduce((c, s) => !c || Math.abs(s.strike - state.currentPrice) < Math.abs(c.strike - state.currentPrice) ? s : c, null);
 }
 
-function showLoading(show) { el.loadingOverlay?.classList.toggle('hidden', !show); }
+function showLoading(show) {
+    el.loadingOverlay?.classList.toggle('hidden', !show);
+}
 
-// Formatting
-function formatDate(dateStr) { return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
-function formatDateShort(dateStr) { return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }); }
-function formatNum(n) { if (!n) return '-'; if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B'; if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'; if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'; return n.toString(); }
-function formatMarketCap(n) { if (!n) return '-'; if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`; if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`; if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`; return `$${n}`; }
-function generateMonthYearLabels() { const l = []; const now = new Date(); for (let i = 6; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); l.push(d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })); } return l; }
-function generatePricePath(midPrice, idx) { const d = []; let p = midPrice * (0.4 + idx * 0.15 + Math.random() * 0.3); for (let i = 0; i < 6; i++) { d.push(Math.max(0.01, p)); p += (midPrice - p) * 0.2 + midPrice * (Math.random() * 0.12 - 0.06); } d.push(midPrice); return d; }
+function formatDate(dateStr) {
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
-console.log('🚀 OptionTracker - Full App with Watchlist & Fixed P/L Calculator');
+function formatDateShort(dateStr) {
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+}
+
+function formatNum(n) {
+    if (!n) return '-';
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    return n.toString();
+}
+
+function formatMarketCap(n) {
+    if (!n) return '-';
+    if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+    if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+    if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
+    return `$${n}`;
+}
+
+function generateMonthYearLabels() {
+    const l = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        l.push(d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
+    }
+    return l;
+}
+
+function generatePricePath(midPrice, idx) {
+    const d = [];
+    let p = midPrice * (0.4 + idx * 0.15 + Math.random() * 0.3);
+    for (let i = 0; i < 6; i++) {
+        d.push(Math.max(0.01, p));
+        p += (midPrice - p) * 0.2 + midPrice * (Math.random() * 0.12 - 0.06);
+    }
+    d.push(midPrice);
+    return d;
+}
+
+console.log('🚀 OptionTracker v2.0 - Robust P/L Calculator');

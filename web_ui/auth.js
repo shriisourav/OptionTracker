@@ -1,81 +1,126 @@
-// OptionTracker - Google OAuth Authentication
-// Improved with silent fallback for local development
+// OptionTracker - Authentication System
+// Supports Google OAuth with graceful fallback to demo mode
 
 const auth = {
     user: null,
-    isAuthenticated: false
+    isAuthenticated: false,
+    googleLoaded: false
 };
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', initAuth);
 
 function initAuth() {
-    // Check for stored user session
+    // Check for stored user session first
     const storedUser = localStorage.getItem('optiontracker_user');
     if (storedUser) {
         try {
             auth.user = JSON.parse(storedUser);
             auth.isAuthenticated = true;
             updateAuthUI();
-            return; // Already logged in
+            console.log('✅ Restored session for:', auth.user.name);
+            return;
         } catch (e) {
             localStorage.removeItem('optiontracker_user');
         }
     }
 
-    // Try to setup Google Sign-In with error handling
-    setupGoogleAuth();
+    // Setup authentication
+    setupAuth();
 
     // Setup sign out button
     document.getElementById('signOutBtn')?.addEventListener('click', signOut);
 }
 
-function setupGoogleAuth() {
-    // Check if we can use Google Identity Services
+function setupAuth() {
     const clientId = getGoogleClientId();
-    const isValidClientId = clientId && !clientId.includes('YOUR_GOOGLE_CLIENT_ID');
+    const isConfigured = clientId && !clientId.includes('YOUR_GOOGLE_CLIENT_ID');
+
+    // Always render demo buttons first (works everywhere)
+    renderDemoButtons();
+
+    // Try to load Google OAuth if configured
+    if (isConfigured && canUseGoogleOAuth()) {
+        waitForGoogleScript().then(() => {
+            if (auth.googleLoaded) {
+                initializeGoogleAuth(clientId);
+            }
+        });
+    }
+}
+
+function canUseGoogleOAuth() {
+    // Google OAuth requires:
+    // 1. HTTPS or localhost
+    // 2. Not file:// protocol
     const isSecureOrigin = window.location.protocol === 'https:' ||
-        window.location.hostname === 'localhost';
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1';
+    const isNotFileProtocol = window.location.protocol !== 'file:';
+    return isSecureOrigin && isNotFileProtocol;
+}
 
-    if (typeof google !== 'undefined' && google.accounts && isValidClientId && isSecureOrigin) {
-        try {
-            google.accounts.id.initialize({
-                client_id: clientId,
-                callback: handleGoogleSignIn,
-                auto_select: false
-            });
+function waitForGoogleScript() {
+    return new Promise((resolve) => {
+        let attempts = 0;
+        const maxAttempts = 20; // 2 seconds max
 
-            // Render Google button in navbar
-            renderGoogleButton('googleSignInBtn', 'medium');
-            renderGoogleButton('watchlistGoogleBtn', 'large');
+        const check = () => {
+            if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+                auth.googleLoaded = true;
+                resolve(true);
+            } else if (attempts < maxAttempts) {
+                attempts++;
+                setTimeout(check, 100);
+            } else {
+                console.log('Google Sign-In script not loaded, using demo mode');
+                resolve(false);
+            }
+        };
+        check();
+    });
+}
 
-        } catch (e) {
-            console.log('Google Sign-In not available, using demo mode');
-            renderDemoButtons();
-        }
-    } else {
-        // Use demo buttons for local development
-        console.log('🔐 OptionTracker: Using demo sign-in for local development');
-        renderDemoButtons();
+function initializeGoogleAuth(clientId) {
+    try {
+        google.accounts.id.initialize({
+            client_id: clientId,
+            callback: handleGoogleSignIn,
+            auto_select: false,
+            cancel_on_tap_outside: true
+        });
+
+        // Replace demo buttons with Google buttons
+        renderGoogleButton('googleSignInBtn', 'medium');
+        renderGoogleButton('watchlistGoogleBtn', 'large');
+        console.log('✅ Google OAuth initialized');
+
+    } catch (e) {
+        console.log('Google OAuth init failed, keeping demo mode:', e.message);
     }
 }
 
 function renderGoogleButton(containerId, size) {
     const container = document.getElementById(containerId);
-    if (container && !auth.isAuthenticated && typeof google !== 'undefined') {
-        google.accounts.id.renderButton(container, {
-            type: 'standard',
-            theme: 'filled_blue',
-            size: size,
-            text: 'signin_with',
-            shape: 'rectangular'
-        });
+    if (container && !auth.isAuthenticated && auth.googleLoaded) {
+        try {
+            container.innerHTML = ''; // Clear demo button
+            google.accounts.id.renderButton(container, {
+                type: 'standard',
+                theme: 'filled_blue',
+                size: size,
+                text: 'signin_with',
+                shape: 'rectangular'
+            });
+        } catch (e) {
+            // Keep demo button if Google render fails
+        }
     }
 }
 
 function getGoogleClientId() {
-    // Replace this with your actual Google Cloud OAuth Client ID
-    // Instructions: https://console.cloud.google.com/apis/credentials
+    // Replace with your actual Google Cloud OAuth Client ID
+    // Get one at: https://console.cloud.google.com/apis/credentials
     return 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
 }
 
@@ -87,7 +132,8 @@ function handleGoogleSignIn(response) {
             id: payload.sub,
             name: payload.name,
             email: payload.email,
-            picture: payload.picture
+            picture: payload.picture,
+            provider: 'google'
         };
         auth.isAuthenticated = true;
 
@@ -95,7 +141,7 @@ function handleGoogleSignIn(response) {
         updateAuthUI();
 
         if (typeof loadWatchlist === 'function') loadWatchlist();
-        console.log('✅ Signed in as:', auth.user.name);
+        console.log('✅ Signed in with Google as:', auth.user.name);
     }
 }
 
@@ -106,6 +152,7 @@ function decodeJWT(token) {
             '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
         ).join('')));
     } catch (e) {
+        console.error('JWT decode error:', e);
         return null;
     }
 }
@@ -115,12 +162,14 @@ function signOut() {
     auth.isAuthenticated = false;
     localStorage.removeItem('optiontracker_user');
 
-    if (typeof google !== 'undefined' && google.accounts) {
-        google.accounts.id.disableAutoSelect();
+    if (auth.googleLoaded && typeof google !== 'undefined' && google.accounts) {
+        try {
+            google.accounts.id.disableAutoSelect();
+        } catch (e) { }
     }
 
     updateAuthUI();
-    renderDemoButtons();
+    setupAuth(); // Re-render sign-in buttons
     console.log('👋 Signed out');
 }
 
@@ -153,7 +202,7 @@ function updateAuthUI() {
     }
 }
 
-// Demo buttons for local development (no Google OAuth errors)
+// Demo buttons - work everywhere without errors
 function renderDemoButtons() {
     const containers = ['googleSignInBtn', 'watchlistGoogleBtn'];
 
@@ -176,13 +225,14 @@ function renderDemoButtons() {
     });
 }
 
-// Demo sign-in for local development
+// Demo sign-in - instant, no errors, works everywhere
 function demoSignIn() {
     auth.user = {
         id: 'demo-' + Date.now(),
         name: 'Demo User',
         email: 'demo@optiontracker.app',
-        picture: 'logo.png'
+        picture: 'logo.png',
+        provider: 'demo'
     };
     auth.isAuthenticated = true;
 
@@ -193,6 +243,7 @@ function demoSignIn() {
     console.log('✅ Demo sign-in successful');
 }
 
+// Expose for onclick
 window.demoSignIn = demoSignIn;
 
 console.log('🔐 OptionTracker Auth loaded');

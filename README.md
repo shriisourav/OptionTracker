@@ -2,6 +2,19 @@
 
 > A professional options analysis platform with Python backend and responsive Web UI
 
+## 🌐 Live Demo
+
+**Try it now:** [https://option-tracker-smoky.vercel.app](https://option-tracker-smoky.vercel.app)
+
+| Component | URL |
+|-----------|-----|
+| **Frontend** | [option-tracker-smoky.vercel.app](https://option-tracker-smoky.vercel.app) |
+| **Backend API** | [optiontracker.onrender.com](https://optiontracker.onrender.com) |
+
+> Note: The backend uses Render's free tier which sleeps after 15 minutes of inactivity. The first request may take ~30 seconds to wake up.
+
+---
+
 ## 🎯 Project Overview
 
 OptionTracker is a multi-platform options analysis tool that implements the "Neighbor Algorithm" to compare options across:
@@ -32,7 +45,7 @@ OptionTracker/
     └── style.css     # Responsive styling
 ```
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Local Development)
 
 ### 1. Start the Python Backend
 
@@ -73,6 +86,7 @@ To enable Google Sign-In:
 4. Create **OAuth 2.0 Client ID** (Web application)
 5. Add your domain to **Authorized JavaScript origins**
    - For local: `http://localhost:8000`
+   - For Vercel: `https://option-tracker-smoky.vercel.app`
 6. Copy the **Client ID**
 7. Open `web_ui/auth.js` and replace `YOUR_GOOGLE_CLIENT_ID`
 
@@ -85,7 +99,7 @@ For local testing without Google OAuth, use the demo button or run `demoSignIn()
 GET /api/price/<ticker>
 
 # Example
-curl http://localhost:5001/api/price/MSFT
+curl https://optiontracker.onrender.com/api/price/MSFT
 ```
 
 Returns: price, change, market cap, P/E, dividend, beta, 52-week range
@@ -95,7 +109,7 @@ Returns: price, change, market cap, P/E, dividend, beta, 52-week range
 GET /api/chain/<ticker>?type=calls
 
 # Example
-curl http://localhost:5001/api/chain/MSFT?type=calls
+curl https://optiontracker.onrender.com/api/chain/MSFT?type=calls
 ```
 
 ### Compare by Strike (Price Mode)
@@ -149,6 +163,7 @@ POST /api/compare/date
 - Flask (REST API)
 - yfinance (options data)
 - flask-cors (CORS support)
+- gunicorn (production server)
 
 ### Frontend
 - HTML5 + CSS3 (responsive design)
@@ -157,10 +172,14 @@ POST /api/compare/date
 - Google Identity Services (OAuth)
 - Inter font family
 
+### Deployment
+- **Frontend**: Vercel (static hosting)
+- **Backend**: Render (Python web service)
+
 ## 📝 Development Notes
 
 - Port: Backend runs on 5001 (Flask)
-- CORS: Enabled for local development
+- CORS: Enabled for all origins
 - Greeks: Some may be null (yfinance limitation)
 - Authentication: Uses Google Identity Services with JWT decoding
 
