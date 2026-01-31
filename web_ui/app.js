@@ -150,6 +150,15 @@ function resetPLResults() {
     el.plResults?.classList.add('hidden');
 }
 
+function setDefaultTargetPrice() {
+    // Set a reasonable default based on current price and option type
+    if (el.targetPrice && state.currentPrice > 0) {
+        const defaultMultiplier = state.optionType === 'calls' ? 1.10 : 0.90;
+        const suggestedTarget = (state.currentPrice * defaultMultiplier).toFixed(2);
+        el.targetPrice.placeholder = `e.g., ${suggestedTarget}`;
+    }
+}
+
 function handleCalculatePL() {
     // Prevent double-clicks
     if (state.plCalculator.isCalculating) {
@@ -180,6 +189,9 @@ function calculatePL() {
     const currentStrike = state.selectedStrike;
     const currentType = state.optionType;
 
+    console.log('=== P/L CALCULATION START ===');
+    console.log('State:', { currentDate, currentStrike, currentType, currentPrice: state.currentPrice });
+
     if (!currentDate || !currentStrike) {
         showPLError('Please select an expiration date and strike price first');
         return;
@@ -200,17 +212,33 @@ function calculatePL() {
     }
 
     // Step 2: Get input values
-    const targetPriceStr = el.targetPrice?.value || '';
-    const targetPrice = targetPriceStr ? parseFloat(targetPriceStr) : state.currentPrice;
+    let targetPriceStr = el.targetPrice?.value?.trim() || '';
+    let targetPrice;
 
-    if (isNaN(targetPrice) || targetPrice < 0) {
-        showPLError('Please enter a valid target price');
+    if (targetPriceStr === '') {
+        // No target entered - use current stock price
+        targetPrice = state.currentPrice;
+        console.log('No target entered, using current price:', targetPrice);
+    } else {
+        targetPrice = parseFloat(targetPriceStr);
+    }
+
+    // Validate target price is reasonable
+    if (isNaN(targetPrice) || targetPrice <= 0) {
+        showPLError('Please enter a valid target price greater than 0');
         return;
+    }
+
+    // Warn if target seems unreasonable (more than 3x or less than 1/3 of current)
+    if (targetPrice > state.currentPrice * 3 || targetPrice < state.currentPrice / 3) {
+        console.warn(`Target price $${targetPrice} seems extreme compared to current $${state.currentPrice.toFixed(2)}`);
     }
 
     const qty = Math.max(1, parseInt(el.contractQty?.value) || 1);
     const mid = contractData.mid || 0;
     const strike = currentStrike;
+
+    console.log('Contract data:', { mid, strike, qty });
 
     if (mid <= 0) {
         showPLError('No valid price data for this contract');
@@ -302,8 +330,23 @@ function displayPLResults(data) {
 }
 
 function showPLError(message) {
-    console.warn('P/L Calculator:', message);
-    alert(message);
+    console.warn('P/L Calculator Error:', message);
+
+    // Show error in profitLoss element without destroying structure
+    if (el.profitLoss && el.plResults) {
+        // Show results panel
+        el.plResults.classList.remove('hidden');
+
+        // Display error in the P/L field
+        el.optionValue.textContent = '-';
+        el.costBasis.textContent = '-';
+        el.profitLoss.textContent = message;
+        el.profitLoss.className = 'red';
+        el.returnPct.textContent = '-';
+        el.returnPct.className = '';
+    } else {
+        alert(message);
+    }
 }
 
 // ============================================
@@ -357,6 +400,11 @@ async function loadStock(ticker) {
     showLoading(true);
     resetPLResults();
 
+    // Clear target price when loading new stock
+    if (el.targetPrice) {
+        el.targetPrice.value = '';
+    }
+
     try {
         const res = await fetch(`${API_BASE}/price/${ticker}`);
         const data = await res.json();
@@ -367,6 +415,7 @@ async function loadStock(ticker) {
         state.currentPrice = data.price;
 
         updateStockDisplay();
+        setDefaultTargetPrice();
         await loadFullChain();
         updateWatchlistButton();
 
