@@ -33,19 +33,28 @@ const STOCK_COLORS = [
 function initStockCompare() {
     console.log('📊 Initializing Stock Compare module');
 
-    // Set default dates: Start = 2 years ago, End = Today
-    const today = new Date();
-    const twoYearsAgo = new Date();
-    twoYearsAgo.setFullYear(today.getFullYear() - 2);
+    // Set default dates: Start = 2 years ago, End = Today (current date)
+    // Using explicit date calculation to avoid timezone issues
+    const now = new Date();
+    const todayYear = now.getFullYear();
+    const todayMonth = now.getMonth();
+    const todayDay = now.getDate();
+
+    // Format today's date as YYYY-MM-DD
+    const endDateStr = `${todayYear}-${String(todayMonth + 1).padStart(2, '0')}-${String(todayDay).padStart(2, '0')}`;
+
+    // Calculate 2 years ago
+    const startYear = todayYear - 2;
+    const startDateStr = `${startYear}-${String(todayMonth + 1).padStart(2, '0')}-${String(todayDay).padStart(2, '0')}`;
 
     const startEl = document.getElementById('compareStartDate');
     const endEl = document.getElementById('compareEndDate');
 
     // Always set dates (user can override)
-    if (startEl) startEl.value = twoYearsAgo.toISOString().split('T')[0];
-    if (endEl) endEl.value = today.toISOString().split('T')[0];
+    if (startEl && !startEl.value) startEl.value = startDateStr;
+    if (endEl && !endEl.value) endEl.value = endDateStr;
 
-    console.log('📊 Dates set:', startEl?.value, 'to', endEl?.value);
+    console.log('📊 Default dates set:', startEl?.value, 'to', endEl?.value);
 }
 
 // Attach all event listeners immediately (not dependent on page visibility)
@@ -169,14 +178,15 @@ async function analyzeStocks() {
 async function fetchStockData(ticker, startDate, endDate) {
     try {
         // Fetch current price and info
-        const priceRes = await fetch(`${API_BASE}/api/price/${ticker}`);
+        // Note: API_BASE already includes /api, so we just add /price/ticker
+        const priceRes = await fetch(`${API_BASE}/price/${ticker}`);
         if (!priceRes.ok) throw new Error(`Failed to fetch ${ticker}`);
         const priceData = await priceRes.json();
 
         // Try to fetch historical data from backend, fallback to simulation
         let history;
         try {
-            const histRes = await fetch(`${API_BASE}/api/history/${ticker}?start=${startDate}&end=${endDate}`);
+            const histRes = await fetch(`${API_BASE}/history/${ticker}?start=${startDate}&end=${endDate}`);
             if (histRes.ok) {
                 const histData = await histRes.json();
                 if (histData.history && histData.history.length > 0) {
@@ -617,7 +627,28 @@ document.addEventListener('DOMContentLoaded', () => {
         observer.observe(comparePage, { attributes: true, attributeFilter: ['class'] });
     }
 
-    // Also set dates if page is already active
+    // Also set dates if page is already active OR preload dates for when user visits the tab
     setDefaultDates();
+
+    // Preload dates immediately so they're ready when user clicks the tab
+    // This ensures dates show correctly even before user interacts with the tab
+    setTimeout(() => {
+        const startEl = document.getElementById('compareStartDate');
+        const endEl = document.getElementById('compareEndDate');
+
+        if (startEl && !startEl.value) {
+            const now = new Date();
+            const todayYear = now.getFullYear();
+            const todayMonth = now.getMonth();
+            const todayDay = now.getDate();
+
+            const endDateStr = `${todayYear}-${String(todayMonth + 1).padStart(2, '0')}-${String(todayDay).padStart(2, '0')}`;
+            const startDateStr = `${todayYear - 2}-${String(todayMonth + 1).padStart(2, '0')}-${String(todayDay).padStart(2, '0')}`;
+
+            startEl.value = startDateStr;
+            endEl.value = endDateStr;
+            console.log('📊 Preloaded dates:', startDateStr, 'to', endDateStr);
+        }
+    }, 100);
 });
 

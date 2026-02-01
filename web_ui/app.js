@@ -10,9 +10,11 @@
 // API Configuration
 // ============================================
 const RENDER_BACKEND_URL = 'https://optiontracker.onrender.com';
-const API_BASE = window.location.hostname === 'localhost' || window.location.protocol === 'file:'
-    ? 'http://localhost:5001/api'
-    : `${RENDER_BACKEND_URL}/api`;
+const isLocal = window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.protocol === 'file:';
+const API_BASE = isLocal ? 'http://localhost:5001/api' : `${RENDER_BACKEND_URL}/api`;
+
 
 // ============================================
 // Stock Data
@@ -48,7 +50,7 @@ const state = {
     selectedData: null,
     comparisonData: null,
     chartInstance: null,
-    chartType: 'line',  // 'line' or 'bar'
+    chartType: 'bar',  // 'line' or 'bar' - bar shows real prices, line shows trends
     watchlist: [],
     currentPage: 'options',
     plCalculator: {
@@ -693,62 +695,102 @@ function updateChart() {
             }
         });
     } else {
-        // LINE CHART - Shows trend visualization
-        const labels = generateMonthYearLabels();
-        const datasets = [];
-        let allData = [];
-        const legendItems = [];
+        // LINE CHART - Shows actual price comparison (not historical, just current values)
+        // This visualizes how option prices differ across strikes or expirations
+        const labels = series.map(s =>
+            state.mode === 'strike' ? `$${s.data.strike}` : formatDateShort(s.date || s.label)
+        );
 
-        series.forEach((s, idx) => {
-            const color = colors[s.position] || colors.target;
-            const data = generatePricePath(s.data.mid, idx);
-            allData = allData.concat(data);
+        const midPrices = series.map(s => s.data.mid);
+        const bidPrices = series.map(s => s.data.bid);
+        const askPrices = series.map(s => s.data.ask);
+        const maxValue = Math.max(...askPrices);
 
-            let label = state.mode === 'strike' ? `$${s.data.strike}` : formatDateShort(s.date || s.label);
-
-            datasets.push({
-                label, data, borderColor: color, backgroundColor: 'transparent',
-                borderWidth: s.position === 'target' ? 3 : 2, tension: 0.4, pointRadius: 0
-            });
-
-            const colorClass = s.position === 'target' ? 'cyan' : (s.position === 'before' || s.position === 'below') ? 'purple' : 'green';
-            legendItems.push(`<div class="legend-item"><span class="legend-color ${colorClass}"></span>${label}</div>`);
+        const legendItems = series.map(s => {
+            const colorClass = s.position === 'target' ? 'cyan' :
+                (s.position === 'before' || s.position === 'below') ? 'purple' : 'green';
+            const label = state.mode === 'strike' ? `$${s.data.strike}` : formatDateShort(s.date || s.label);
+            return `<div class="legend-item"><span class="legend-color ${colorClass}"></span>${label}: $${s.data.mid.toFixed(2)}</div>`;
         });
-
-        const maxValue = Math.max(...allData);
-        legendItems.push(`<div class="legend-item"><span class="legend-color max"></span>Max</div>`);
+        legendItems.push(`<div class="legend-item"><span class="legend-color max"></span>Max: $${maxValue.toFixed(2)}</div>`);
 
         if (el.chartLegend) el.chartLegend.innerHTML = legendItems.join('');
         if (el.chartTitle) el.chartTitle.textContent = `Price Comparison: ±1 ${state.mode === 'strike' ? 'Strike' : 'Date'}`;
 
+        // Create line chart with actual prices (shows bid/mid/ask as connected lines)
         state.chartInstance = new Chart(ctx, {
             type: 'line',
-            data: { labels, datasets },
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Ask',
+                        data: askPrices,
+                        borderColor: '#22c55e',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 6,
+                        pointBackgroundColor: '#22c55e',
+                        fill: false
+                    },
+                    {
+                        label: 'Mid',
+                        data: midPrices,
+                        borderColor: '#00d4ff',
+                        backgroundColor: 'rgba(0, 212, 255, 0.2)',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        pointRadius: 8,
+                        pointBackgroundColor: '#00d4ff',
+                        fill: true
+                    },
+                    {
+                        label: 'Bid',
+                        data: bidPrices,
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 6,
+                        pointBackgroundColor: '#ef4444',
+                        fill: false
+                    }
+                ]
+            },
             options: {
-                responsive: true, maintainAspectRatio: false,
+                responsive: true,
+                maintainAspectRatio: false,
                 interaction: { intersect: false, mode: 'index' },
                 plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: 'rgba(13, 17, 23, 0.95)', titleColor: '#00d4ff', bodyColor: '#e6edf3',
-                        callbacks: { label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}` }
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: { color: '#8b949e', font: { size: 11 } }
                     },
-                    annotation: {
-                        annotations: {
-                            maxLine: {
-                                type: 'line', yMin: maxValue, yMax: maxValue,
-                                borderColor: '#f59e0b', borderWidth: 2, borderDash: [6, 4],
-                                label: {
-                                    display: true, content: `Max: $${maxValue.toFixed(2)}`, position: 'end',
-                                    backgroundColor: '#f59e0b', color: '#0d1117', font: { size: 11, weight: 'bold' }
-                                }
-                            }
+                    tooltip: {
+                        backgroundColor: 'rgba(13, 17, 23, 0.95)',
+                        titleColor: '#00d4ff',
+                        bodyColor: '#e6edf3',
+                        callbacks: {
+                            label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`
                         }
                     }
                 },
                 scales: {
-                    x: { grid: { color: '#21262d' }, ticks: { color: '#6e7681', font: { size: 11 } } },
-                    y: { grid: { color: '#21262d' }, ticks: { color: '#6e7681', font: { size: 11 }, callback: v => '$' + v.toFixed(1) } }
+                    x: {
+                        grid: { color: '#21262d' },
+                        ticks: { color: '#e6edf3', font: { size: 12, weight: 'bold' } }
+                    },
+                    y: {
+                        grid: { color: '#21262d' },
+                        ticks: {
+                            color: '#6e7681',
+                            font: { size: 11 },
+                            callback: v => '$' + v.toFixed(2)
+                        },
+                        beginAtZero: true
+                    }
                 }
             }
         });
