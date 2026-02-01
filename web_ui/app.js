@@ -695,69 +695,41 @@ function updateChart() {
             }
         });
     } else {
-        // LINE CHART - Shows actual price comparison (not historical, just current values)
-        // This visualizes how option prices differ across strikes or expirations
-        const labels = series.map(s =>
-            state.mode === 'strike' ? `$${s.data.strike}` : formatDateShort(s.date || s.label)
-        );
+        // LINE CHART - Shows ±1 comparison with separate colored lines for each strike/date
+        // This visualizes how option prices differ across neighboring strikes or expirations
+        const labels = ['Bid', 'Mid', 'Ask'];
+        const datasets = [];
+        const legendItems = [];
 
-        const midPrices = series.map(s => s.data.mid);
-        const bidPrices = series.map(s => s.data.bid);
-        const askPrices = series.map(s => s.data.ask);
-        const maxValue = Math.max(...askPrices);
+        series.forEach((s, idx) => {
+            const color = colors[s.position] || colors.target;
+            const itemLabel = state.mode === 'strike' ? `$${s.data.strike}` : formatDateShort(s.date || s.label);
 
-        const legendItems = series.map(s => {
+            datasets.push({
+                label: itemLabel,
+                data: [s.data.bid, s.data.mid, s.data.ask],
+                borderColor: color,
+                backgroundColor: color + '20',
+                borderWidth: s.position === 'target' ? 3 : 2,
+                tension: 0.3,
+                pointRadius: s.position === 'target' ? 8 : 6,
+                pointBackgroundColor: color,
+                fill: s.position === 'target'
+            });
+
             const colorClass = s.position === 'target' ? 'cyan' :
                 (s.position === 'before' || s.position === 'below') ? 'purple' : 'green';
-            const label = state.mode === 'strike' ? `$${s.data.strike}` : formatDateShort(s.date || s.label);
-            return `<div class="legend-item"><span class="legend-color ${colorClass}"></span>${label}: $${s.data.mid.toFixed(2)}</div>`;
+            const posLabel = s.position === 'target' ? '(Selected)' :
+                (s.position === 'before' || s.position === 'below') ? '(-1)' : '(+1)';
+            legendItems.push(`<div class="legend-item"><span class="legend-color ${colorClass}"></span>${itemLabel} ${posLabel}: $${s.data.mid.toFixed(2)}</div>`);
         });
-        legendItems.push(`<div class="legend-item"><span class="legend-color max"></span>Max: $${maxValue.toFixed(2)}</div>`);
 
         if (el.chartLegend) el.chartLegend.innerHTML = legendItems.join('');
         if (el.chartTitle) el.chartTitle.textContent = `Price Comparison: ±1 ${state.mode === 'strike' ? 'Strike' : 'Date'}`;
 
-        // Create line chart with actual prices (shows bid/mid/ask as connected lines)
         state.chartInstance = new Chart(ctx, {
             type: 'line',
-            data: {
-                labels,
-                datasets: [
-                    {
-                        label: 'Ask',
-                        data: askPrices,
-                        borderColor: '#22c55e',
-                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        pointRadius: 6,
-                        pointBackgroundColor: '#22c55e',
-                        fill: false
-                    },
-                    {
-                        label: 'Mid',
-                        data: midPrices,
-                        borderColor: '#00d4ff',
-                        backgroundColor: 'rgba(0, 212, 255, 0.2)',
-                        borderWidth: 3,
-                        tension: 0.3,
-                        pointRadius: 8,
-                        pointBackgroundColor: '#00d4ff',
-                        fill: true
-                    },
-                    {
-                        label: 'Bid',
-                        data: bidPrices,
-                        borderColor: '#ef4444',
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        pointRadius: 6,
-                        pointBackgroundColor: '#ef4444',
-                        fill: false
-                    }
-                ]
-            },
+            data: { labels, datasets },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -766,7 +738,11 @@ function updateChart() {
                     legend: {
                         display: true,
                         position: 'top',
-                        labels: { color: '#8b949e', font: { size: 11 } }
+                        labels: {
+                            color: '#8b949e',
+                            font: { size: 11 },
+                            usePointStyle: true
+                        }
                     },
                     tooltip: {
                         backgroundColor: 'rgba(13, 17, 23, 0.95)',
@@ -789,7 +765,7 @@ function updateChart() {
                             font: { size: 11 },
                             callback: v => '$' + v.toFixed(2)
                         },
-                        beginAtZero: true
+                        beginAtZero: false
                     }
                 }
             }
