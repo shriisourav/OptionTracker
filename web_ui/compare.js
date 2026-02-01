@@ -31,42 +31,57 @@ const STOCK_COLORS = [
     '#f97316', // orange
 ];
 
-// Initialize Stock Compare
+// Initialize Stock Compare - called on DOMContentLoaded
 function initStockCompare() {
     console.log('📊 Initializing Stock Compare module');
 
-    // Always set default dates (2 year range - current date as end, 2 years ago as start)
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setFullYear(startDate.getFullYear() - 2);
+    // Set default dates: Start = 2 years ago, End = Today
+    const today = new Date();
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(today.getFullYear() - 2);
 
     const startEl = document.getElementById('compareStartDate');
     const endEl = document.getElementById('compareEndDate');
 
-    if (startEl) startEl.value = startDate.toISOString().split('T')[0];
-    if (endEl) endEl.value = endDate.toISOString().split('T')[0];
-
-    // Only attach event listeners once
-    if (compareState.initialized) {
-        console.log('📊 Already initialized, skipping listener attachment');
-        return;
+    if (startEl && !startEl.value) {
+        startEl.value = twoYearsAgo.toISOString().split('T')[0];
+    }
+    if (endEl && !endEl.value) {
+        endEl.value = today.toISOString().split('T')[0];
     }
 
+    console.log('📊 Dates set:', { start: startEl?.value, end: endEl?.value });
+}
+
+// Attach all event listeners immediately (not dependent on page visibility)
+function setupCompareEventListeners() {
+    if (compareState.initialized) return;
     compareState.initialized = true;
 
-    // Event listeners
-    document.getElementById('analyzeStocksBtn')?.addEventListener('click', analyzeStocks);
-    document.getElementById('scaleActual')?.addEventListener('click', () => setScale(false));
-    document.getElementById('scaleRelative')?.addEventListener('click', () => setScale(true));
-    document.getElementById('optimizeBtn')?.addEventListener('click', optimizePortfolio);
-    document.getElementById('riskTolerance')?.addEventListener('input', updateRiskDisplay);
+    const analyzeBtn = document.getElementById('analyzeStocksBtn');
+    const scaleActualBtn = document.getElementById('scaleActual');
+    const scaleRelativeBtn = document.getElementById('scaleRelative');
+    const optimizeBtn = document.getElementById('optimizeBtn');
+    const riskSlider = document.getElementById('riskTolerance');
+
+    if (analyzeBtn) {
+        analyzeBtn.addEventListener('click', analyzeStocks);
+        console.log('📊 Analyze button listener attached');
+    }
+    if (scaleActualBtn) scaleActualBtn.addEventListener('click', () => setScale(false));
+    if (scaleRelativeBtn) scaleRelativeBtn.addEventListener('click', () => setScale(true));
+    if (optimizeBtn) {
+        optimizeBtn.addEventListener('click', optimizePortfolio);
+        console.log('📊 Optimize button listener attached');
+    }
+    if (riskSlider) riskSlider.addEventListener('input', updateRiskDisplay);
 
     // Export buttons
     document.getElementById('exportReturns')?.addEventListener('click', exportReturnsCSV);
     document.getElementById('exportPrices')?.addEventListener('click', exportPricesCSV);
     document.getElementById('exportChart')?.addEventListener('click', exportChart);
 
-    console.log('📊 Stock Compare initialized successfully');
+    console.log('📊 Stock Compare event listeners attached');
 }
 
 // Update risk tolerance display
@@ -589,31 +604,25 @@ function exportChart() {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('📊 Stock Compare module loaded');
 
+    // Immediately attach event listeners (don't wait for page visibility)
+    setupCompareEventListeners();
+
     const comparePage = document.getElementById('comparePage');
 
-    // Function to trigger init (dates always set, listeners only once)
-    function tryInit() {
+    // Function to set default dates when page becomes visible
+    function setDefaultDates() {
         if (comparePage && comparePage.classList.contains('active')) {
             initStockCompare();
         }
     }
 
-    // Attach nav link listeners
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', (e) => {
-            const page = e.target.dataset?.page || e.currentTarget.dataset?.page;
-            if (page === 'compare') {
-                setTimeout(tryInit, 200);
-            }
-        });
-    });
-
-    // MutationObserver for class changes
+    // Watch for page visibility changes
     if (comparePage) {
-        const observer = new MutationObserver(() => tryInit());
+        const observer = new MutationObserver(setDefaultDates);
         observer.observe(comparePage, { attributes: true, attributeFilter: ['class'] });
     }
 
-    // Initialize immediately if already active
-    tryInit();
+    // Also set dates if page is already active
+    setDefaultDates();
 });
+
