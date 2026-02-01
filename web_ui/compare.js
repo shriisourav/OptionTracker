@@ -6,9 +6,7 @@
  * Licensed under the MIT License. See LICENSE file for details.
  */
 
-const API_BASE = window.location.hostname === 'localhost'
-    ? 'http://localhost:5001'
-    : 'https://optiontracker.onrender.com';
+// Note: API_BASE is defined in app.js which loads before this script
 
 // State for Stock Compare
 const compareState = {
