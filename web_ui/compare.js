@@ -43,14 +43,11 @@ function initStockCompare() {
     const startEl = document.getElementById('compareStartDate');
     const endEl = document.getElementById('compareEndDate');
 
-    if (startEl && !startEl.value) {
-        startEl.value = twoYearsAgo.toISOString().split('T')[0];
-    }
-    if (endEl && !endEl.value) {
-        endEl.value = today.toISOString().split('T')[0];
-    }
+    // Always set dates (user can override)
+    if (startEl) startEl.value = twoYearsAgo.toISOString().split('T')[0];
+    if (endEl) endEl.value = today.toISOString().split('T')[0];
 
-    console.log('📊 Dates set:', { start: startEl?.value, end: endEl?.value });
+    console.log('📊 Dates set:', startEl?.value, 'to', endEl?.value);
 }
 
 // Attach all event listeners immediately (not dependent on page visibility)
