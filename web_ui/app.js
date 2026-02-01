@@ -391,6 +391,9 @@ function navigateTo(page) {
         p.classList.toggle('active', p.id === `${page}Page`);
     });
     if (page === 'watchlist') renderWatchlist();
+    if (page === 'compare' && typeof initStockCompare === 'function') {
+        setTimeout(() => initStockCompare(), 100);
+    }
 }
 
 // ============================================

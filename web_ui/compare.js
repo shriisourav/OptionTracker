@@ -35,25 +35,38 @@ const STOCK_COLORS = [
 function initStockCompare() {
     console.log('📊 Initializing Stock Compare module');
 
-    // Set default dates (2 year range - current date as end, 2 years ago as start)
+    // Always set default dates (2 year range - current date as end, 2 years ago as start)
     const endDate = new Date();
     const startDate = new Date();
     startDate.setFullYear(startDate.getFullYear() - 2);
 
-    document.getElementById('compareEndDate').value = endDate.toISOString().split('T')[0];
-    document.getElementById('compareStartDate').value = startDate.toISOString().split('T')[0];
+    const startEl = document.getElementById('compareStartDate');
+    const endEl = document.getElementById('compareEndDate');
+
+    if (startEl) startEl.value = startDate.toISOString().split('T')[0];
+    if (endEl) endEl.value = endDate.toISOString().split('T')[0];
+
+    // Only attach event listeners once
+    if (compareState.initialized) {
+        console.log('📊 Already initialized, skipping listener attachment');
+        return;
+    }
+
+    compareState.initialized = true;
 
     // Event listeners
-    document.getElementById('analyzeStocksBtn').addEventListener('click', analyzeStocks);
-    document.getElementById('scaleActual').addEventListener('click', () => setScale(false));
-    document.getElementById('scaleRelative').addEventListener('click', () => setScale(true));
-    document.getElementById('optimizeBtn').addEventListener('click', optimizePortfolio);
-    document.getElementById('riskTolerance').addEventListener('input', updateRiskDisplay);
+    document.getElementById('analyzeStocksBtn')?.addEventListener('click', analyzeStocks);
+    document.getElementById('scaleActual')?.addEventListener('click', () => setScale(false));
+    document.getElementById('scaleRelative')?.addEventListener('click', () => setScale(true));
+    document.getElementById('optimizeBtn')?.addEventListener('click', optimizePortfolio);
+    document.getElementById('riskTolerance')?.addEventListener('input', updateRiskDisplay);
 
     // Export buttons
-    document.getElementById('exportReturns').addEventListener('click', exportReturnsCSV);
-    document.getElementById('exportPrices').addEventListener('click', exportPricesCSV);
-    document.getElementById('exportChart').addEventListener('click', exportChart);
+    document.getElementById('exportReturns')?.addEventListener('click', exportReturnsCSV);
+    document.getElementById('exportPrices')?.addEventListener('click', exportPricesCSV);
+    document.getElementById('exportChart')?.addEventListener('click', exportChart);
+
+    console.log('📊 Stock Compare initialized successfully');
 }
 
 // Update risk tolerance display
@@ -578,38 +591,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const comparePage = document.getElementById('comparePage');
 
-    // Function to check and initialize
-    function checkAndInit() {
-        if (comparePage && comparePage.classList.contains('active') && !compareState.initialized) {
-            console.log('📊 Compare page is active, initializing...');
+    // Function to trigger init (dates always set, listeners only once)
+    function tryInit() {
+        if (comparePage && comparePage.classList.contains('active')) {
             initStockCompare();
-            compareState.initialized = true;
         }
     }
 
-    // Attach nav link listeners after DOM is ready
+    // Attach nav link listeners
     document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', (e) => {
             const page = e.target.dataset?.page || e.currentTarget.dataset?.page;
             if (page === 'compare') {
-                // Small delay to let page become visible
-                setTimeout(checkAndInit, 200);
+                setTimeout(tryInit, 200);
             }
         });
     });
 
-    // Use MutationObserver to detect when compare page becomes visible
+    // MutationObserver for class changes
     if (comparePage) {
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.attributeName === 'class') {
-                    checkAndInit();
-                }
-            });
-        });
-        observer.observe(comparePage, { attributes: true });
+        const observer = new MutationObserver(() => tryInit());
+        observer.observe(comparePage, { attributes: true, attributeFilter: ['class'] });
     }
 
-    // Initialize immediately if compare page is active on load
-    checkAndInit();
+    // Initialize immediately if already active
+    tryInit();
 });
