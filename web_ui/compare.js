@@ -576,26 +576,40 @@ function exportChart() {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('📊 Stock Compare module loaded');
 
+    const comparePage = document.getElementById('comparePage');
+
+    // Function to check and initialize
+    function checkAndInit() {
+        if (comparePage && comparePage.classList.contains('active') && !compareState.initialized) {
+            console.log('📊 Compare page is active, initializing...');
+            initStockCompare();
+            compareState.initialized = true;
+        }
+    }
+
     // Attach nav link listeners after DOM is ready
     document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', (e) => {
             const page = e.target.dataset?.page || e.currentTarget.dataset?.page;
             if (page === 'compare') {
                 // Small delay to let page become visible
-                setTimeout(() => {
-                    if (!compareState.initialized) {
-                        initStockCompare();
-                        compareState.initialized = true;
-                    }
-                }, 150);
+                setTimeout(checkAndInit, 200);
             }
         });
     });
 
-    // Initialize immediately if compare page is active
-    const comparePage = document.getElementById('comparePage');
-    if (comparePage && comparePage.classList.contains('active')) {
-        initStockCompare();
-        compareState.initialized = true;
+    // Use MutationObserver to detect when compare page becomes visible
+    if (comparePage) {
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'class') {
+                    checkAndInit();
+                }
+            });
+        });
+        observer.observe(comparePage, { attributes: true });
     }
+
+    // Initialize immediately if compare page is active on load
+    checkAndInit();
 });
